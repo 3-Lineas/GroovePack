@@ -1,0 +1,45 @@
+{
+  "name": "@3lineas/groovepack",
+  "version": "0.1.0",
+  "description": "Interactive CLI for sharing reusable library templates across projects without npm package clutter",
+  "type": "module",
+  "bin": {
+    "groovepack": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "registry",
+    "README.md"
+  ],
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsup",
+    "check-types": "tsc --noEmit",
+    "test": "tsx test/rollback-and-install.test.ts"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.8.2",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "keywords": [
+    "cli",
+    "scaffold",
+    "code-sharing",
+    "shadcn-style",
+    "monorepo",
+    "groovepack"
+  ],
+  "author": "3lineas",
+  "license": "MIT",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}
