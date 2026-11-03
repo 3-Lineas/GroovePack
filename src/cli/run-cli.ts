@@ -29,70 +29,63 @@ async function hasExistingFiles(dirPath: string): Promise<boolean> {
 export async function runCli(): Promise<void> {
   p.intro(pc.bgCyan(pc.black(" @3lineas/groovepack ")));
 
-  // Step 1: Category selection loop
-  let selectedCategory: LibraryCategory | "all" | null = null;
-  let itemsToPresent: RegistryItem[] = [];
-
-  while (true) {
-    const categoryChoice = await p.select<string>({
-      message: "Selecciona una categoría de librerías:",
-      options: [
-        ...CATEGORIES.map((c) => ({
-          value: c.id,
-          label: c.label,
-          hint: c.hint,
-        })),
-        {
-          value: "all",
-          label: "Ver todas agrupadas",
-          hint: "Muestra todo el catálogo disponible en Groovepack",
-        },
-      ],
-    });
-
-    if (p.isCancel(categoryChoice)) {
-      p.cancel("Operación cancelada por el usuario.");
-      process.exit(0);
-    }
-
-    selectedCategory = categoryChoice as LibraryCategory | "all";
-
-    if (selectedCategory === "all") {
-      itemsToPresent = [...REGISTRY_ITEMS];
-      break;
-    }
-
-    const filtered = getLibrariesByCategory(selectedCategory);
-    if (filtered.length === 0) {
-      p.log.warn(
-        `Aún no hay librerías disponibles en la categoría "${selectedCategory}". Selecciona otra categoría.`,
-      );
-      continue;
-    }
-
-    itemsToPresent = filtered;
-    break;
-  }
-
-  // Step 2: Multi-select libraries
-  const libraryChoices = await p.multiselect<string>({
-    message: "Selecciona las librerías a incorporar:",
-    options: itemsToPresent.map((item) => ({
-      value: item.id,
-      label: item.name,
-      hint: `${pc.cyan(`[${item.category}]`)} ${item.description}`,
+  // Step 1: Select 1 or more categories (multiselect)
+  const categoryChoices = await p.multiselect<string>({
+    message: "Selecciona una o más categorías de librerías:",
+    options: CATEGORIES.map((c) => ({
+      value: c.id,
+      label: c.label,
+      hint: c.hint,
     })),
     required: true,
   });
 
-  if (p.isCancel(libraryChoices)) {
-    p.cancel("Operación cancelada.");
+  if (p.isCancel(categoryChoices)) {
+    p.cancel("Operación cancelada por el usuario.");
     process.exit(0);
   }
 
-  const selectedItems = itemsToPresent.filter((item) =>
-    libraryChoices.includes(item.id),
-  );
+  const selectedCategories = categoryChoices as LibraryCategory[];
+
+  // Step 2: Iterate over selected categories to pick libraries
+  const selectedItems: RegistryItem[] = [];
+
+  for (const catId of selectedCategories) {
+    const categoryMeta = CATEGORIES.find((c) => c.id === catId);
+    const catLabel = categoryMeta ? categoryMeta.label : catId;
+    const availableInCat = getLibrariesByCategory(catId);
+
+    if (availableInCat.length === 0) {
+      p.log.warn(`No hay librerías disponibles en la categoría "${catLabel}".`);
+      continue;
+    }
+
+    const libChoices = await p.multiselect<string>({
+      message: `[${pc.cyan(catLabel)}] Selecciona las librerías a incorporar:`,
+      options: availableInCat.map((item) => ({
+        value: item.id,
+        label: item.name,
+        hint: item.description,
+      })),
+      required: false,
+    });
+
+    if (p.isCancel(libChoices)) {
+      p.cancel("Operación cancelada por el usuario.");
+      process.exit(0);
+    }
+
+    const pickedInCat = availableInCat.filter((item) =>
+      libChoices.includes(item.id),
+    );
+
+    selectedItems.push(...pickedInCat);
+  }
+
+  if (selectedItems.length === 0) {
+    p.outro(pc.yellow("No se seleccionó ninguna librería para instalar."));
+    return;
+  }
 
   // Step 3: Configure destination per library
   const configuredTargets: Array<{
@@ -101,7 +94,7 @@ export async function runCli(): Promise<void> {
   }> = [];
 
   for (const item of selectedItems) {
-    p.log.info(pc.bold(`Configurando: ${item.name}`));
+    p.log.info(pc.bold(`Configurando: ${item.name} ${pc.dim(`[${item.category}]`)}`));
 
     const targetInput = await p.text({
       message: `Ruta de destino para "${item.name}":`,
