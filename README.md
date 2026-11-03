@@ -163,28 +163,6 @@ When installing libraries, GroovePack uses an internal `RollbackManager` that:
 
 ---
 
-## 🛠️ Local Development & Testing
-
-```bash
-# Clone the repository
-git clone https://github.com/3-Lineas/GroovePack.git
-cd GroovePack
-
-# Install dependencies
-pnpm install
-
-# Type-check
-pnpm run check-types
-
-# Run test suite (Rollback & Installation)
-pnpm test
-
-# Build production CLI bundle
-pnpm run build
-```
-
----
-
 ## 📄 License
 
 MIT © [3-Lineas](https://github.com/3-Lineas)
