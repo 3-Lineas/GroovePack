@@ -65,15 +65,26 @@ export class Logger {
 
   /**
    * Evaluates if the current execution is running in development mode.
+   * Safe across Node.js, Cloudflare Workers, Edge runtimes, and browsers
+   * without requiring @types/node in the consumer project.
    * @returns true if running in development or testing, false otherwise.
    */
   private checkIsDev(): boolean {
-    if (typeof process !== "undefined" && process.env) {
+    const globalEnv = (
+      globalThis as unknown as {
+        process?: {
+          env?: Record<string, string | undefined>;
+        };
+      }
+    ).process?.env;
+
+    if (globalEnv?.NODE_ENV) {
       return (
-        process.env.NODE_ENV === "development" ||
-        process.env.NODE_ENV === "test"
+        globalEnv.NODE_ENV === "development" ||
+        globalEnv.NODE_ENV === "test"
       );
     }
+
     return true; // Fallback to dev if we can't determine
   }
 
