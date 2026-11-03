@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "harness": true,
+  "language": "en",
+  "agents": [
+    "antigravity"
+  ],
+  "skills": [
+    "odd-ai",
+    "best-practices",
+    "ux-writing",
+    "docs-standards",
+    "error-handling-logging",
+    "clean-architecture-ddd",
+    "env-feature-flags",
+    "typescript-clean",
+    "groove-harness"
+  ],
+  "updatedAt": "2026-11-03T15:57:54.326Z"
+}

@@ -1,6 +1,6 @@
 {
   "name": "@3lineas/groovepack",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Interactive CLI for sharing reusable library templates across projects without npm package clutter",
   "type": "module",
   "bin": {

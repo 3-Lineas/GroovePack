@@ -146,7 +146,43 @@ const handleSubmit = async (values: LoginFormValues) => {
 ---
 
 ### 3. `server`
-Reserved domain for backend adapters, micro-middleware pipelines, and Cloudflare Worker / Next.js server helpers.
+
+#### 🚀 `pipeline`
+Laravel-style sequential execution pipeline with preventive in-memory rollback and atomic Cloudflare D1 batching.
+- **Drizzle & D1 Agnostic**: Works seamlessly with native Cloudflare D1 (`env.DB` / `D1PreparedStatement`), Drizzle ORM (`drizzle(env.DB)`), or pure in-memory business logic.
+- **Strict Zero-Barrel Architecture**: Concrete modular files (`pipeline.ts`, `with-d1-transaction.ts`, `types.ts`, `README.md`) designed for direct imports.
+- **Preventive Rollback**: If any action throws an error (e.g. domain exception), the pipeline stops immediately and zero mutations hit D1.
+- **Atomic Batch Commit**: Staged statements (`tx.stage(...)`) are committed in a single atomic `db.batch()` call upon completion.
+- **Default Target**: `src/lib/pipeline`
+
+```typescript
+import { Pipeline } from "@/lib/pipeline/pipeline";
+import type { D1TransactionContext } from "@/lib/pipeline/types";
+
+// 1. Native Cloudflare D1 (env.DB)
+const result = await Pipeline.send<UserContext>({ db: env.DB, input })
+  .transactional(env.DB)
+  .through([
+    async (ctx) => {
+      // Immediate read
+      const existing = await ctx.tx!.db.prepare("SELECT id FROM users WHERE email = ?").bind(ctx.input.email).first();
+      if (existing) throw new Error("Email already registered");
+      
+      // Stage atomic mutation
+      ctx.tx!.stage(
+        ctx.tx!.db.prepare("INSERT INTO users (id, email) VALUES (?, ?)").bind(newId, ctx.input.email)
+      );
+      return ctx;
+    }
+  ])
+  .thenReturn();
+
+// 2. Drizzle ORM on D1
+const res = await Pipeline.send<UserContext>({ db, input })
+  .transactional(db)
+  .through([validateEmailAction, stageCreateUserAction])
+  .then((ctx) => ctx.createdUser!);
+```
 
 ---
 

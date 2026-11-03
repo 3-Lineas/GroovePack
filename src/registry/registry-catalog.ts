@@ -13,6 +13,10 @@ export const REGISTRY_ITEMS: readonly RegistryItem[] = [
         sourcePath: "files/index.ts.template",
         targetRelPath: "index.ts",
       },
+      {
+        sourcePath: "files/README.md.template",
+        targetRelPath: "README.md",
+      },
     ],
   },
   {
@@ -26,6 +30,36 @@ export const REGISTRY_ITEMS: readonly RegistryItem[] = [
       {
         sourcePath: "files/index.ts.template",
         targetRelPath: "index.ts",
+      },
+      {
+        sourcePath: "files/README.md.template",
+        targetRelPath: "README.md",
+      },
+    ],
+  },
+  {
+    id: "pipeline",
+    name: "Pipeline (Laravel-style)",
+    description: "Universal sequential pipeline with atomic batch transactions (Drizzle & Native D1 agnostic)",
+    category: "server",
+    templateRelativeDir: "server/pipeline",
+    defaultTarget: "src/lib/pipeline",
+    files: [
+      {
+        sourcePath: "files/pipeline.ts.template",
+        targetRelPath: "pipeline.ts",
+      },
+      {
+        sourcePath: "files/with-d1-transaction.ts.template",
+        targetRelPath: "with-d1-transaction.ts",
+      },
+      {
+        sourcePath: "files/types.ts.template",
+        targetRelPath: "types.ts",
+      },
+      {
+        sourcePath: "files/README.md.template",
+        targetRelPath: "README.md",
       },
     ],
   },
@@ -41,6 +75,10 @@ export const REGISTRY_ITEMS: readonly RegistryItem[] = [
         sourcePath: "files/index.ts.template",
         targetRelPath: "index.ts",
       },
+      {
+        sourcePath: "files/README.md.template",
+        targetRelPath: "README.md",
+      },
     ],
   },
   {
@@ -54,6 +92,10 @@ export const REGISTRY_ITEMS: readonly RegistryItem[] = [
       {
         sourcePath: "files/index.ts.template",
         targetRelPath: "index.ts",
+      },
+      {
+        sourcePath: "files/README.md.template",
+        targetRelPath: "README.md",
       },
     ],
   },

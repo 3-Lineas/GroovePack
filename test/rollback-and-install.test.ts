@@ -25,10 +25,13 @@ async function runTests() {
       assert.equal(res.status, "installed", `La librería ${item.id} debe instalarse con éxito`);
       assert(res.filesWritten.length > 0, `Debe haber escrito archivos para ${item.id}`);
 
-      const mainFile = path.join(targetDir, "index.ts");
-      const stat = await fs.stat(mainFile);
-      assert(stat.isFile(), `El archivo principal de ${item.id} debe existir`);
-      console.log(`✔ Librería "${item.id}" instalada correctamente.`);
+      // Verificar que todos los archivos declarados por la librería se hayan escrito correctamente
+      for (const fileDesc of item.files) {
+        const filePath = path.join(targetDir, fileDesc.targetRelPath);
+        const stat = await fs.stat(filePath);
+        assert(stat.isFile(), `El archivo "${fileDesc.targetRelPath}" de ${item.id} debe existir`);
+      }
+      console.log(`✔ Librería "${item.id}" instalada correctamente con todos sus archivos.`);
     }
 
     // Test 2: Simulación de fallo y rollback automático sin crash

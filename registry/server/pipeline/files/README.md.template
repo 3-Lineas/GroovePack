@@ -1,0 +1,205 @@
+# 🚀 Pipeline Pattern (`src/lib/pipeline`)
+
+> **Laravel-style sequential pipeline with atomic batch transactions for Cloudflare D1 & SQLite.**
+> 100% agnostic to **Drizzle ORM** and **Native Cloudflare D1 (`D1Database`)**.
+> **Strict Direct Imports Rule**: No barrel files (`index.ts`). Import directly from each file.
+
+---
+
+## 📖 Direct Imports Guide
+
+```typescript
+// ✅ Correct (Direct imports)
+import { Pipeline } from "@/lib/pipeline/pipeline";
+import { withD1Transaction } from "@/lib/pipeline/with-d1-transaction";
+import type { PipeAction, D1TransactionContext } from "@/lib/pipeline/types";
+
+// ❌ Prohibited (No barrel files allowed)
+// import { Pipeline } from "@/lib/pipeline";
+```
+
+---
+
+## 📖 Table of Contents
+1. [Core Concepts](#1-core-concepts)
+2. [How to Use](#2-how-to-use)
+   - [A. Native Cloudflare D1 (`env.DB`)](#a-native-cloudflare-d1-envdb)
+   - [B. Drizzle ORM on D1 (`db`)](#b-drizzle-orm-on-d1-db)
+   - [C. Pure In-Memory Workflows (No Database)](#c-pure-in-memory-workflows-no-database)
+3. [Inputs, Outputs & Type Contracts](#3-inputs-outputs--type-contracts)
+4. [Possible Errors & Troubleshooting](#4-possible-errors--troubleshooting)
+
+---
+
+## 1. Core Concepts
+
+The Pipeline pattern solves the complexity of multi-step business logic by:
+- **Decoupling Actions**: Each action does one thing (`(context) => context`) without nested function calls.
+- **Atomic Cloudflare D1 Batching**: Mutating statements are staged via `tx.stage(...)` and committed together in a single `db.batch()` call upon completion.
+- **Preventive In-Memory Rollback**: If any action throws an error (e.g. domain exception), the pipeline stops immediately. Staged mutations are discarded in memory and zero queries hit D1.
+
+---
+
+## 2. How to Use
+
+### A. Native Cloudflare D1 (`env.DB`)
+
+```typescript
+import { Pipeline } from "@/lib/pipeline/pipeline";
+import type { D1TransactionContext } from "@/lib/pipeline/types";
+
+interface CreateUserContext {
+  db: D1Database;
+  input: { email: string; name: string };
+  tx?: D1TransactionContext<D1Database, D1PreparedStatement>;
+  userId?: string;
+}
+
+// 1. Define isolated actions
+async function ensureEmailAvailable(ctx: CreateUserContext): Promise<CreateUserContext> {
+  const existing = await ctx.tx!.db
+    .prepare("SELECT id FROM users WHERE email = ?")
+    .bind(ctx.input.email)
+    .first();
+
+  if (existing) {
+    throw new Error("Email already registered");
+  }
+  return ctx;
+}
+
+async function stageInsertUser(ctx: CreateUserContext): Promise<CreateUserContext> {
+  const id = crypto.randomUUID();
+  
+  // Stage statement for atomic batch execution
+  ctx.tx!.stage(
+    ctx.tx!.db
+      .prepare("INSERT INTO users (id, email, name) VALUES (?, ?, ?)")
+      .bind(id, ctx.input.email, ctx.input.name)
+  );
+
+  return { ...ctx, userId: id };
+}
+
+// 2. Execute pipeline
+const result = await Pipeline.send<CreateUserContext>({ db: env.DB, input })
+  .transactional(env.DB)
+  .through([ensureEmailAvailable, stageInsertUser])
+  .then((ctx) => ({ id: ctx.userId! }));
+```
+
+---
+
+### B. Drizzle ORM on D1 (`db`)
+
+```typescript
+import { Pipeline } from "@/lib/pipeline/pipeline";
+import type { D1TransactionContext } from "@/lib/pipeline/types";
+import { users } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
+
+interface CreateUserContext {
+  db: typeof db;
+  input: { email: string; name: string };
+  tx?: D1TransactionContext<typeof db, BatchItem<"sqlite">>;
+  createdId?: string;
+}
+
+async function validateUniqueEmail(ctx: CreateUserContext): Promise<CreateUserContext> {
+  const [existing] = await ctx.tx!.db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, ctx.input.email));
+
+  if (existing) {
+    throw new Error("Email already registered");
+  }
+  return ctx;
+}
+
+async function stageCreateUser(ctx: CreateUserContext): Promise<CreateUserContext> {
+  const newId = crypto.randomUUID();
+
+  // Stage Drizzle mutation
+  ctx.tx!.stage(
+    ctx.tx!.db.insert(users).values({
+      id: newId,
+      email: ctx.input.email,
+      name: ctx.input.name,
+    })
+  );
+
+  return { ...ctx, createdId: newId };
+}
+
+// Execute
+const result = await Pipeline.send<CreateUserContext>({ db, input })
+  .transactional(db)
+  .through([validateUniqueEmail, stageCreateUser])
+  .thenReturn();
+```
+
+---
+
+### C. Pure In-Memory Workflows (No Database)
+
+```typescript
+import { Pipeline } from "@/lib/pipeline/pipeline";
+
+interface TransformOrderContext {
+  rawItems: Array<{ price: number; quantity: number }>;
+  discountRate: number;
+  subtotal?: number;
+  total?: number;
+}
+
+const finalOrder = await Pipeline.send<TransformOrderContext>({
+  rawItems: [{ price: 100, quantity: 2 }],
+  discountRate: 0.1,
+})
+  .through([
+    (ctx) => ({ ...ctx, subtotal: ctx.rawItems.reduce((acc, i) => acc + i.price * i.quantity, 0) }),
+    (ctx) => ({ ...ctx, total: ctx.subtotal! * (1 - ctx.discountRate) }),
+  ])
+  .thenReturn();
+```
+
+---
+
+## 3. Inputs, Outputs & Type Contracts
+
+### `Pipeline.send<TContext>(context: TContext)`
+- **Input (`context`)**: Any state object representing the workflow input and accumulated outputs.
+- **Output**: A new `Pipeline<TContext>` instance.
+
+### `.transactional(db)`
+- **Input (`db`)**: Any database client implementing `.batch(statements: any[])`.
+- **Side Effect**: Injects `tx: D1TransactionContext<TDb, TStatement>` into `context.tx`.
+- **Output**: Returns the same pipeline instance (`this`) for method chaining.
+
+### `.through(pipes: PipeAction<TContext>[])`
+- **Input (`pipes`)**: Array of standalone functions with signature:
+  ```typescript
+  (context: TContext) => Promise<TContext> | TContext;
+  ```
+- **Rules**:
+  - Must return the updated context (or a new object spreading `...context`).
+  - To abort the flow, throw a standard error or domain exception.
+
+### `.then(destination)` vs `.thenReturn()`
+- **`.thenReturn()`**: Returns `Promise<TContext>` (the final accumulated state).
+- **`.then(destination)`**: Executes `destination(finalContext)` and returns `Promise<TFinalResult>`.
+
+---
+
+## 4. Possible Errors & Troubleshooting
+
+| Issue / Error | Cause | Solution |
+| :--- | :--- | :--- |
+| **`TypeError: Cannot read properties of undefined (reading 'stage')`** | Attempting to access `ctx.tx.stage(...)` without chaining `.transactional(db)`. | Make sure you call `.transactional(db)` right after `Pipeline.send(context)`. |
+| **Data not written to D1** | Action called `ctx.tx.db.insert(...)` or `.prepare(...)` directly instead of staging via `ctx.tx.stage(...)`. | In transactional pipelines, all writes must be passed to `ctx.tx.stage(stmt)`. Immediate writes bypass atomic batching and won't be rolled back on error. |
+| **Unhandled Promise / Floating Promise** | Forgetting to `await` the pipeline call (`const res = Pipeline.send(...)`). | Always use `await Pipeline.send(...)...` or return the promise. |
+| **State mutations lost between actions** | An action forgot to return `context` or returned `undefined`. | Ensure every pipe function returns `context` or `{ ...context, newProp: value }`. |
+| **Cloudflare D1 batch size exceeded (`D1_ERROR`)** | Staging more than 100 statements or exceeding D1 payload limits in a single batch. | Split massive migrations into chunks of 50-100 items before executing the pipeline. |
+| **Preventive Rollback behavior** | If an action throws an error, the execution immediately bubbles up the exception without calling `db.batch()`. | This is intended behavior. Handle the exception in your route middleware or `try/catch` wrapper. |
