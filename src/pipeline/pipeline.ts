@@ -1,136 +1,94 @@
-/**
- * @fileoverview Sequential multi-action Pipeline processor inspired by Laravel.
- * Agnostic to Drizzle ORM and native Cloudflare D1.
- * Strict Zero-Barrel implementation: imports types directly from ./types.
- */
-import type { PipeAction, D1TransactionContext, BatchCapableDb } from "./types";
+import type { PipeAction } from "@/types/pipeline/pipe-action.type";
+import type { BatchCapableDb } from "@/types/pipeline/batch-capable-db.type";
 
-export type { PipeAction, D1TransactionContext, BatchCapableDb } from "./types";
+export type { PipeAction } from "@/types/pipeline/pipe-action.type";
+export type { BatchCapableDb } from "@/types/pipeline/batch-capable-db.type";
 
 /**
- * Pipeline processor inspired by the Laravel pipeline pattern.
- *
- * Enables sequential execution of decoupled, atomic actions over a typed context.
- * Actions are isolated and follow the single input / single output contract:
- * `(context: TContext) => Promise<TContext> | TContext`.
- *
- * Supports atomic Cloudflare D1 batching via `.transactional(db)`:
- * - Compatible with native Cloudflare D1 (`env.DB`) and Drizzle ORM (`db`).
- * - Automatically injects a `tx: D1TransactionContext` into `context.tx`.
- * - Staged statements via `context.tx.stage(...)` are committed in an atomic `db.batch()`
- *   when `.then()` or `.thenReturn()` resolves.
- * - If any action throws an error (e.g. domain exception), staged statements are discarded
- *   in memory and zero mutations are sent to D1 (preventive in-memory rollback).
- *
- * @template TContext - The state object that flows through and gets enriched by the pipeline.
- *
- * @example
- * ```typescript
- * import { Pipeline } from "@3lineas/groovepack/pipeline";
- *
- * const result = await Pipeline.send<CreateUserContext>({ db, input })
- *   .transactional(db)
- *   .through([validateEmailAction, stageCreateUserAction])
- *   .thenReturn();
- * ```
+ * Pipeline orchestrator inspired by Laravel's Pipeline pattern.
+ * Supports sequential pipe execution and optional atomic Cloudflare D1 batching
+ * via `.transactional(db)`.
  */
 export class Pipeline<TContext> {
-  private context: TContext;
-  private pipes: PipeAction<any, any>[] = [];
-  private dbClient?: BatchCapableDb<any, any>;
-  private stagedStatements: unknown[] = [];
+  private readonly context: TContext;
+  private pipes: PipeAction<TContext, TContext>[] = [];
+  private dbInstance: BatchCapableDb | null = null;
+  private isTransactional = false;
 
   private constructor(context: TContext) {
     this.context = context;
   }
 
   /**
-   * Initializes a new pipeline instance with the provided initial context.
-   *
-   * @template T - The context type of the pipeline.
-   * @param context - The initial state to be processed through the pipeline steps.
-   * @returns A new `Pipeline` instance.
+   * Initializes a new pipeline with the given initial context.
    */
-  static send<T>(context: T): Pipeline<T> {
-    return new Pipeline<T>(context);
+  public static send<TInitial>(context: TInitial): Pipeline<TInitial> {
+    return new Pipeline(context);
   }
 
   /**
-   * Enables atomic Cloudflare D1 batch transaction mode for this pipeline run.
-   *
-   * Automatically initializes `tx: D1TransactionContext` into `context.tx` and
-   * commits all staged statements atomically using `db.batch()` upon resolution.
-   * Works with both native D1 (`D1Database`) and Drizzle D1.
-   *
-   * @param db - The database client instance used to execute the final atomic batch.
-   * @returns The current pipeline instance for fluent chaining.
+   * Enables transactional mode using Cloudflare D1 `db.batch()`.
+   * Pipes must push statements onto `context.stagedStatements` instead of
+   * executing them immediately.
    */
-  transactional<
-    TDb extends BatchCapableDb<TStatement, any>,
-    TStatement = unknown,
-  >(db: TDb): this {
-    this.dbClient = db;
-
-    const txContext: D1TransactionContext<TDb, TStatement> = {
-      db,
-      stage: (...statements: TStatement[]) => {
-        this.stagedStatements.push(...statements);
-      },
-    };
-
-    if (this.context && typeof this.context === "object") {
-      this.context = {
-        ...this.context,
-        tx: txContext,
-      };
-    }
-
+  public transactional(db: BatchCapableDb): this {
+    this.dbInstance = db;
+    this.isTransactional = true;
     return this;
   }
 
   /**
-   * Defines the sequential list of atomic pipe actions to execute.
-   *
-   * @param pipes - An array of atomic action functions.
-   * @returns The current pipeline instance for fluent method chaining.
+   * Registers the ordered list of pipe actions to execute.
    */
-  through(pipes: PipeAction<TContext, any>[]): this {
+  public through(pipes: PipeAction<TContext, TContext>[]): this {
     this.pipes = pipes;
     return this;
   }
 
   /**
-   * Executes the pipeline sequentially, commits staged mutations atomically if transactional,
-   * and passes the final enriched context to a destination closure, returning its resolved value.
-   *
-   * @template TFinalResult - The type of value returned by the destination closure.
-   * @param destination - Callback receiving the final context.
-   * @returns A promise resolving to the result of the destination callback.
+   * Executes all registered pipes sequentially and optionally passes the final
+   * context to a destination closure.
    */
-  async then<TFinalResult>(
-    destination: (context: TContext) => Promise<TFinalResult> | TFinalResult,
-  ): Promise<TFinalResult> {
-    const finalContext = await this.thenReturn();
-    return await destination(finalContext);
-  }
-
-  /**
-   * Executes all pipes sequentially, executes atomic db.batch() if transactional mode is active,
-   * and returns the final context state.
-   *
-   * @returns A promise resolving to the final accumulated context object.
-   */
-  async thenReturn(): Promise<TContext> {
+  public async then<TResult = TContext>(
+    destination?: (context: TContext) => Promise<TResult> | TResult,
+  ): Promise<TResult> {
     let currentContext = this.context;
 
-    for (const pipe of this.pipes) {
-      currentContext = await pipe(currentContext);
-    }
+    try {
+      for (const pipe of this.pipes) {
+        currentContext = await pipe(currentContext);
+      }
 
-    if (this.dbClient && this.stagedStatements.length > 0) {
-      await this.dbClient.batch(this.stagedStatements);
-    }
+      if (
+        this.isTransactional &&
+        this.dbInstance &&
+        this.hasStagedStatements(currentContext) &&
+        currentContext.stagedStatements.length > 0
+      ) {
+        await this.dbInstance.batch(currentContext.stagedStatements);
+      }
 
-    return currentContext;
+      if (destination) {
+        return await destination(currentContext);
+      }
+
+      return currentContext as unknown as TResult;
+    } catch (caughtError) {
+      if (this.isTransactional && this.hasStagedStatements(currentContext)) {
+        currentContext.stagedStatements = [];
+      }
+      throw caughtError;
+    }
+  }
+
+  private hasStagedStatements(
+    candidate: unknown,
+  ): candidate is { stagedStatements: unknown[] } {
+    return (
+      typeof candidate === "object" &&
+      candidate !== null &&
+      "stagedStatements" in candidate &&
+      Array.isArray((candidate as { stagedStatements: unknown }).stagedStatements)
+    );
   }
 }

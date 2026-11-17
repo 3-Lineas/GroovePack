@@ -8,6 +8,7 @@ export default defineConfig({
     "api-client/index": "src/api-client/index.ts",
     "api-action/index": "src/api-action/index.ts",
     "api-toast/index": "src/api-toast/index.ts",
+    "i18n/index": "src/i18n/index.ts",
   },
   format: ["esm"],
   dts: true,

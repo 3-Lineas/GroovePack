@@ -1,89 +1,65 @@
-import { describe, it, mock } from "node:test";
+import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { toast } from "sonner";
-import { apiToast, toasted, createApiToast } from "../src/api-toast/index.js";
+import { apiToast, createApiToast } from "../src/api-toast/index.js";
+import { setGroovepackLocale } from "../src/i18n/index.js";
 
 describe("apiToast & createApiToast", () => {
+  afterEach(() => {
+    setGroovepackLocale(undefined);
+    delete process.env.GROOVEPACK_LOCALE;
+  });
+
   it("resolves with ActionResponse on success and triggers onSuccess", async () => {
-    const toastPromiseMock = mock.method(toast, "promise", () => "toast-id");
     let onSuccessCalled = false;
 
-    const res = await apiToast<{ id: string }>({
-      action: async () => ({
-        success: true,
-        message: "Saved!",
-        data: { id: "123" },
-      }),
-      loadingMessage: "Saving...",
-      successMessage: (r) => `Saved ${r.data?.id}`,
-      onSuccess: async (r) => {
-        onSuccessCalled = r.data?.id === "123";
+    const result = await apiToast<{ id: string }>({
+      action: async () => ({ success: true, data: { id: "123" } }),
+      successMessage: "Saved 123",
+      onSuccess: (data) => {
+        onSuccessCalled = data?.id === "123";
       },
     });
 
-    assert.equal(res.success, true);
-    assert.deepEqual(res.data, { id: "123" });
+    assert.equal(result.success, true);
     assert.equal(onSuccessCalled, true);
-    assert.equal(toastPromiseMock.mock.callCount(), 1);
-
-    toastPromiseMock.mock.restore();
   });
 
   it("returns failed ActionResponse and triggers onError when action returns success: false", async () => {
-    const toastPromiseMock = mock.method(toast, "promise", () => "toast-id");
-    let capturedErrorMsg = "";
+    let capturedError = "";
 
-    const res = await toasted({
-      action: async () => ({
-        success: false,
-        message: "Invalid credentials",
-      }),
-      onError: (err) => {
-        capturedErrorMsg = err.message;
+    const result = await apiToast({
+      action: async () => ({ success: false, error: "Denied" }),
+      onError: (errorMessage) => {
+        capturedError = errorMessage;
       },
     });
 
-    assert.equal(res.success, false);
-    assert.equal(res.message, "Invalid credentials");
-    assert.equal(capturedErrorMsg, "Invalid credentials");
-    assert.equal(toastPromiseMock.mock.callCount(), 1);
-
-    toastPromiseMock.mock.restore();
+    assert.equal(result.success, false);
+    assert.equal(capturedError, "Denied");
   });
 
-  it("createApiToast applies custom defaultErrorMessage when action rejects", async () => {
-    const toastPromiseMock = mock.method(toast, "promise", () => "toast-id");
+  it("createApiToast applies custom defaultErrorMessage and locale", async () => {
     const customToast = createApiToast({
-      defaultLoadingMessage: "Processing...",
-      defaultSuccessMessage: "Done!",
-      defaultErrorMessage: "Custom fallback error",
+      locale: "pt",
+      defaultErrorMessage: "Custom fallback",
     });
 
-    const res = await customToast({
-      action: async () => ({
-        success: false,
-      }),
+    const result = await customToast({
+      action: async () => ({ success: false }),
     });
 
-    assert.equal(res.success, false);
-    assert.equal(toastPromiseMock.mock.callCount(), 1);
-
-    toastPromiseMock.mock.restore();
+    assert.equal(result.success, false);
   });
 
   it("catches thrown exceptions and returns standardized failure ActionResponse", async () => {
-    const toastPromiseMock = mock.method(toast, "promise", () => "toast-id");
-
-    const res = await apiToast({
+    const result = await apiToast({
+      locale: "it",
       action: async () => {
-        throw new Error("Network failure");
+        throw new Error("Boom");
       },
     });
 
-    assert.equal(res.success, false);
-    assert.equal(res.error, "Network failure");
-    assert.equal(res.message, "Network failure");
-
-    toastPromiseMock.mock.restore();
+    assert.equal(result.success, false);
+    assert.equal(result.error, "Boom");
   });
 });

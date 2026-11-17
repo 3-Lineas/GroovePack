@@ -1,52 +1,30 @@
-/**
- * @fileoverview Transactional wrapper that emulates Laravel's DB::transaction() pattern for Cloudflare D1.
- * Agnostic to Drizzle ORM and native Cloudflare D1.
- * Strict Zero-Barrel implementation: imports types directly from ./types.
- */
-import type { D1TransactionContext, BatchCapableDb } from "./types";
+import type { BatchCapableDb } from "@/types/pipeline/batch-capable-db.type";
+import type { D1TransactionContext } from "@/types/pipeline/d1-transaction-context.type";
 
-export type { D1TransactionContext, BatchCapableDb } from "./types";
+export type { D1TransactionContext } from "@/types/pipeline/d1-transaction-context.type";
 
 /**
- * Transactional wrapper that emulates Laravel's `DB::transaction()` pattern on Cloudflare D1.
- *
- * 1. Wraps the sequential execution of a Pipeline or asynchronous workflow.
- * 2. If any Action throws an error (domain exception or unexpected error),
- *    the pipeline terminates immediately and staged mutations are discarded in memory.
- *    No queries are sent to Cloudflare D1 (Preventive in-memory rollback).
- * 3. If the pipeline completes successfully and mutations were staged,
- *    they are dispatched together via `db.batch()`, guaranteeing ACID atomicity on SQLite/D1.
- *
- * Compatible with:
- * - Native Cloudflare D1: `withD1Transaction(env.DB, async (tx) => { ... })`
- * - Drizzle ORM: `withD1Transaction(db, async (tx) => { ... })`
- *
- * @param db - The database client instance (native D1 or Drizzle).
- * @param pipelineExecution - Callback receiving the `D1TransactionContext`.
- * @returns The resolved value of the pipeline execution callback.
+ * Standalone helper to execute staged D1 statements atomically via `db.batch()`,
+ * clearing staged statements on error as a preventive in-memory rollback.
  */
 export async function withD1Transaction<
-  TResult,
-  TDb extends BatchCapableDb<TStatement, any> = BatchCapableDb,
+  TContext extends D1TransactionContext<TStatement>,
   TStatement = unknown,
 >(
-  db: TDb,
-  pipelineExecution: (tx: D1TransactionContext<TDb, TStatement>) => Promise<TResult>,
-): Promise<TResult> {
-  const stagedStatements: TStatement[] = [];
+  db: BatchCapableDb<TStatement>,
+  context: TContext,
+  work: (transactionContext: TContext) => Promise<void> | void,
+): Promise<TContext> {
+  try {
+    await work(context);
 
-  const tx: D1TransactionContext<TDb, TStatement> = {
-    db,
-    stage: (...statements: TStatement[]) => {
-      stagedStatements.push(...statements);
-    },
-  };
+    if (context.stagedStatements.length > 0) {
+      await db.batch(context.stagedStatements);
+    }
 
-  const result = await pipelineExecution(tx);
-
-  if (stagedStatements.length > 0) {
-    await db.batch(stagedStatements);
+    return context;
+  } catch (caughtError) {
+    context.stagedStatements = [];
+    throw caughtError;
   }
-
-  return result;
 }

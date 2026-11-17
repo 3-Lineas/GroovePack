@@ -1,6 +1,6 @@
 {
   "name": "@3lineas/groovepack",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Zero-dependency & modular infrastructure primitives for TypeScript, Cloudflare Workers (D1, Hono), React, and Astro.",
   "type": "module",
   "sideEffects": false,
@@ -32,6 +32,10 @@
     "./api-toast": {
       "types": "./dist/api-toast/index.d.ts",
       "import": "./dist/api-toast/index.js"
+    },
+    "./i18n": {
+      "types": "./dist/i18n/index.d.ts",
+      "import": "./dist/i18n/index.js"
     }
   },
   "publishConfig": {

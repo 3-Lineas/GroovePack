@@ -10,8 +10,14 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "isolatedModules": true
+    "isolatedModules": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
   "include": ["src/**/*", "test/**/*"],
-  "exclude": ["node_modules", "dist", "registry"]
+  "exclude": ["node_modules", "dist"]
 }

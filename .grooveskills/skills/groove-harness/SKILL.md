@@ -9,7 +9,16 @@ A lightweight, non-intrusive harness living entirely within `.grooveskills/`. It
 
 ---
 
-## 1. The ODD 3-Lane Execution Flow
+## 1. Mandatory .grooveskills-First Read (Zero Project Re-Scanning)
+- **First Step**: On every turn, prompt, or interaction, the agent MUST immediately read `.grooveskills/` FIRST:
+  1. `.grooveskills/memory/context.md` (project stack, architecture map, conventions, commands).
+  2. `.grooveskills/memory/decisions.md` (ADRs & architectural decisions).
+  3. Active task records in `.grooveskills/memory/tasks/`.
+- **Zero Full-Project Re-Scanning**: DO NOT perform broad scans of the entire workspace, recursive directory walks, or full codebase inspections on every interaction. The architecture and conventions are already documented in `.grooveskills/`. Inspect only specific files needed for the task at hand.
+
+---
+
+## 2. The ODD 3-Lane Execution Flow
 
 Every request is governed by the 7-step ODD protocol (*Authorize, Explore, Resolve, Classify, Track & Hypothesize, Execute, Verify*) mapped into three lanes:
 
@@ -20,32 +29,56 @@ Every request is governed by the 7-step ODD protocol (*Authorize, Explore, Resol
 ### Lane 2: Task (Outcome-Driven Implementation)
 - **Trigger**: Concrete change, standard feature, refactor, or bugfix with clear requirements.
 - **Protocol**:
-  1. For non-trivial work, locate or create `.grooveskills/memory/tasks/<slug>.md`.
+  1. For non-trivial work, locate or create `.grooveskills/memory/tasks/YY-MM-DD-<slug>.md` (e.g. `26-11-08-auth-flow.md`). Maintain chronological order; if any task files do not follow this pattern, correct them.
   2. Declare the **Outcome Hypothesis**, `Scope`, and an itemized `Checklist`.
   3. Execute code changes incrementally following clean code standards.
-  4. Only check off tasks once **observed evidence** is verified (e.g. `check-types`, test runs, or command outputs under `Evidence`).
+  4. Only check off tasks once **observed evidence** is verified (e.g. `check-types`, tests, build, and the **Post-Task Security Gate** if trust boundaries or agent rules were touched).
   5. Keep `Next` updated so any interruption costs nothing.
 
 ### Lane 3: Spec (Collaborative Design)
 - **Trigger**: Multi-component restructuring, ambiguous requirements, or high-risk domain changes.
 - **Protocol**:
-  1. Draft the architectural proposal, interfaces, trade-offs, and open questions inside `.grooveskills/memory/tasks/<slug>.md`.
+  1. Draft the architectural proposal, interfaces, trade-offs, and open questions inside `.grooveskills/memory/tasks/YY-MM-DD-<slug>.md`.
   2. Present the spec to the user and request explicit confirmation.
   3. Once approved, switch to Lane 2 (Task) for outcome-driven implementation.
 
 ---
 
-## 2. Project Memory Maintenance
+## 3. Daily Bitacora (`.grooveskills/bitacora/YYYY-MM.md`)
 
-- **`.grooveskills/memory/context.md`**: Stores project stack, architectural patterns, conventions, and key commands. Read this when starting work on a domain; update it when new dependencies or architectural standards are introduced.
-- **`.grooveskills/memory/decisions.md`**: An append-only Architecture Decision Record (ADR). Log significant technical decisions (`Date`, `Context`, `Decision`, `Consequences`).
-- **`.grooveskills/memory/tasks/00-onboarding.md`**: Initial onboarding task. If `status: pending`, inspect project structure, commands, and verify `.grooveskills/memory/context.md`, then mark as `completed`.
-- **`.grooveskills/memory/tasks/`**: Individual feature records holding outcome hypotheses, checklists, and observed proof.
+- **Purpose**: Maintain a daily summary of what was completed so the developer can effortlessly update external management trackers (Jira, Trello, ClickUp, Linear).
+- **Format**: Plain date `YYYY-MM-DD` followed by concise bullet points (`- ...`). Strictly NO tables.
+```markdown
+2026-10-25
+- Se agrego tal funcionalidad...
+- Se corrigio tal problema...
+```
+- **Storage**: One file per month located at `.grooveskills/bitacora/YYYY-MM.md` (e.g., `.grooveskills/bitacora/2026-11.md`).
+- **Order**: Reverse chronological (most recent day at the top of the file).
+- **Update Frequency**: Update on every agent interaction that delivers progress (code changes, fixes, specs, or audits).
+- **Max 10 Items per Day (Compaction Rule)**: Each date section (`YYYY-MM-DD`) MUST NOT exceed **10 list items** (flat `- ...` bullets only, zero nested sub-bullets). If adding progress would exceed 10 items for a day, rewrite and compact/merge related bullets into concise high-level summaries so the day stays at **<= 10 items** without losing key outcomes. Do NOT link or reference internal task files.
 
 ---
 
-## 3. Core Principles
+## 4. Project Memory Maintenance
 
-1. **Outcome-Driven Accountability**: Every non-trivial change requires an outcome hypothesis and an observed verification receipt.
-2. **Strict Encapsulation**: Keep harness and state confined to `.grooveskills/`. Do not pollute the root repository.
-3. **Respect Best Practices**: All code must follow strict typing, guard clauses, SRP, direct imports (no barrels), and file limits (<200 lines).
+- **`.grooveskills/memory/context.md`**: Stores project stack, architectural patterns, conventions, and key commands. Read this when starting work on a domain; update it when new dependencies or architectural standards are introduced.
+- **`.grooveskills/memory/decisions.md`**: An append-only Architecture Decision Record (ADR). Log significant technical decisions (`Date`, `Context`, `Decision`, `Consequences`).
+- **`.grooveskills/memory/tasks/00-onboarding.md`**: Initial onboarding task. If `status: pending`, complete its checklist to enrich `context.md` and `decisions.md`, set status to `completed`, summarize what was documented, and stop to wait for user instructions. During onboarding, ONLY edit `context.md`, `decisions.md`, `00-onboarding.md`, and `bitacora/`; NEVER install dependencies, create `YY-MM-DD-*.md` tasks, or start implementing features or migrations mentioned in Q&A answers.
+- **`.grooveskills/memory/tasks/`**: Individual feature records holding outcome hypotheses, checklists, and observed proof.
+- **`.grooveskills/bitacora/`**: Monthly markdown summaries for daily developer progress tracking.
+
+---
+
+## 5. Core Principles
+
+1. **Mandatory .grooveskills-First Read**: Never re-scan the entire codebase; rely on persistent project memory.
+2. **Outcome-Driven Accountability**: Every non-trivial change requires an outcome hypothesis and an observed verification receipt.
+3. **Strict Encapsulation**: Keep harness and state confined to `.grooveskills/`. Do not pollute the root repository.
+4. **Strict Atomic File Rule (1 Function/Method per File)**: Every code file must export at most ONE function, method, action, route handler, component, hook, schema, or type. Never group multiple helpers or methods in one file.
+5. **Type Isolation Rule**: Never declare data interfaces or types inline inside actions, routes, DTOs, or hooks. Only a UI component's own `Props` interface can be declared inline in its `.tsx` file; all other domain/data types must live in `@/types/{domain}/{name}.type.ts`.
+6. **Domain within Technical Layers**: Always organize by `{domain}` subfolders inside each technical layer (`src/actions/{domain}/`, `src/routes/{domain}/`, `src/dtos/{domain}/`, `src/types/{domain}/`, `src/errors/{domain}/`). Never create root `src/domains/` or `src/controllers/` folders.
+7. **1 DB Call per Action & Mandatory Pipeline Chaining**: Every database query or mutation must live in its own dedicated Action (max 1 DB query per Action). Monolithic use-case actions (like `register-user.action.ts`) are strictly forbidden; routes must chain atomic actions via `Pipeline`.
+8. **Respect Best Practices**: All code must follow strict typing, guard clauses, SRP, direct imports (no barrels), and file limits (<200 lines).
+9. **World-Business-Grade Standard (Zero Tech-Debt Workarounds)**: Deliver production-grade root-cause solutions by default. Never propose or implement permissive fallbacks, optional auth bypasses, or silent compatibility shims in `Lane 2 (Task)` or `Lane 3 (Spec)` to avoid updating existing tests or callers, unless the user explicitly approves a reduced scope.
+

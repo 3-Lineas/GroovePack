@@ -30,35 +30,39 @@ A hybrid software engineering methodology tailored for AI coding assistants. It 
 - Evaluate whether the user's prompt explicitly authorizes code modification.
 - Inquiries, reviews, audits, or questions trigger **Lane 1 (Answer)**: remain strictly **read-only**.
 
-### Step 2: Explore Proportionately
-- Consult `.grooveskills/memory/context.md` for project architecture, conventions, and key commands.
-- Read only files relevant to the active scope; avoid full codebase traversals that waste tokens.
+### Step 2: Explore Proportionately (.grooveskills-First)
+- Read `.grooveskills/memory/context.md`, `decisions.md`, and active tasks FIRST.
+- **Zero Full-Project Re-Scanning**: Rely on the documented architecture; do NOT perform recursive directory walks on every prompt. Read only files strictly relevant to the active scope.
 
 ### Step 3: Resolve Uncertainty Early
 - Disambiguate technical choices directly from codebase inspection.
-- Ask the user focused questions only when facing genuine product or architectural crossroads.
+- Ask the user focused questions only when facing genuine product or architectural crossroads, or when enforcing the World-Business-Grade standard requires updating dependents beyond the expected scope. Never silently downgrade security or correctness to avoid breaking legacy callers.
 
 ### Step 4: Classify Semantic Scope
 - Classify tasks by semantic complexity and reversibility, never by superficial line counts:
   - **Micro-Fix**: Focused 1-line or localized tweak; execute directly and verify.
-  - **Feature / Refactor (Lane 2 - Task)**: Requires state tracking in `.grooveskills/memory/tasks/<slug>.md`.
-  - **Architecture (Lane 3 - Spec)**: High ambiguity or cross-domain risk; draft spec and align before writing code.
+  - **Feature / Refactor (Lane 2 - Task)**: Requires state tracking in `.grooveskills/memory/tasks/YY-MM-DD-<slug>.md` (e.g. `26-11-08-auth-flow.md`). Correct existing task files if they lack this chronological prefix.
+  - **Architecture (Lane 3 - Spec)**: High ambiguity or cross-domain risk; draft spec in `.grooveskills/memory/tasks/YY-MM-DD-<slug>.md` and align before writing code.
 
 ### Step 5: Track Before First Write & Outcome Hypothesis
-Before modifying source files for substantial tasks, record the **Outcome Hypothesis** in `.grooveskills/memory/tasks/<slug>.md`:
+Before modifying source files for substantial tasks, record the **Outcome Hypothesis** in `.grooveskills/memory/tasks/YY-MM-DD-<slug>.md`:
 > *"By [Output / Technical Change], [Outcome / Verifiable Behavior] will occur, proven by [Evidence / Test / Build Command]."*
 
 ### Step 6: Execute Proportionate Clean Code
 - Apply strict typing (zero `any`), guard clauses (no nested `if`s), SRP, and file limit (<200 lines).
 - Avoid premature optimizations; implement exactly what the outcome demands.
+- **Zero Tech-Debt Patches**: Update broken tests, fixtures, and callers cleanly to match the strict contract. Never introduce permissive fallbacks or optional auth bypasses to keep legacy tests green unless explicitly approved by the user.
 
-### Step 7: Verify Against Outcomes (Receipt of Evidence)
+### Step 7: Verify Against Outcomes (Security Gate, Receipt of Evidence & Bitacora)
 - Run automated verification: typecheck, tests, linter, or build.
+- **Post-Task Security Gate**: If the task touched trust boundaries (routes, schemas, auth, DB/RLS, payments, webhooks, IPC, or agent skills/rules), verify defenses (no BOLA/BOPLA, injection, or secrets leakage). If skills/rules were modified, run `node skills/security-audit/scripts/scan-skill-integrity.mjs`.
 - Record exact outputs under `## Evidence` in the task document.
 - Update `## Next` so work can be resumed seamlessly across agent turns.
+- **Daily Bitacora Entry**: If the interaction delivers progress, append or update the concise summary in `.grooveskills/bitacora/YYYY-MM.md` (`YYYY-MM-DD` bullets, reverse chronological, max 10 items per day with compaction when exceeded, no tables).
 
 ---
 
 ## 3. Communication Standard
 - Maintain an empathetic, professional, and solution-driven tone.
 - When working in Spanish (`es`), use clear, courteous explanations and actionable guidance.
+

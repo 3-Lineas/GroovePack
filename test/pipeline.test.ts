@@ -1,7 +1,11 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { Pipeline, type D1TransactionContext } from "../src/pipeline/pipeline";
-import { withD1Transaction } from "../src/pipeline/with-d1-transaction";
+import { Pipeline } from "../src/pipeline/pipeline.js";
+import {
+  withD1Transaction,
+  type D1TransactionContext,
+} from "../src/pipeline/with-d1-transaction.js";
+
 
 describe("Pipeline & withD1Transaction", () => {
   it("executes pipes sequentially and returns enriched context", async () => {
@@ -15,7 +19,7 @@ describe("Pipeline & withD1Transaction", () => {
         (ctx) => ({ count: ctx.count + 1, steps: [...ctx.steps, "a"] }),
         async (ctx) => ({ count: ctx.count * 10, steps: [...ctx.steps, "b"] }),
       ])
-      .thenReturn();
+      .then();
 
     assert.equal(result.count, 20);
     assert.deepEqual(result.steps, ["a", "b"]);
@@ -30,31 +34,31 @@ describe("Pipeline & withD1Transaction", () => {
   });
 
   it("commits staged statements atomically via db.batch() in transactional mode", async () => {
-    const batched: unknown[][] = [];
+    const batched: (readonly unknown[])[] = [];
     const mockDb = {
-      batch: async (stmts: unknown[]) => {
+      batch: async (stmts: readonly unknown[]) => {
         batched.push(stmts);
         return stmts.map(() => ({ success: true }));
       },
     };
 
     interface TxCtx {
-      tx?: D1TransactionContext<typeof mockDb, string>;
+      stagedStatements: string[];
     }
 
-    await Pipeline.send<TxCtx>({})
+    await Pipeline.send<TxCtx>({ stagedStatements: [] })
       .transactional(mockDb)
       .through([
         (ctx) => {
-          ctx.tx?.stage("INSERT INTO users VALUES (1)");
+          ctx.stagedStatements.push("INSERT INTO users VALUES (1)");
           return ctx;
         },
         (ctx) => {
-          ctx.tx?.stage("INSERT INTO logs VALUES ('created')");
+          ctx.stagedStatements.push("INSERT INTO logs VALUES ('created')");
           return ctx;
         },
       ])
-      .thenReturn();
+      .then();
 
     assert.equal(batched.length, 1);
     assert.deepEqual(batched[0], [
@@ -64,32 +68,32 @@ describe("Pipeline & withD1Transaction", () => {
   });
 
   it("performs preventive in-memory rollback when a pipe throws", async () => {
-    const batched: unknown[][] = [];
+    const batched: (readonly unknown[])[] = [];
     const mockDb = {
-      batch: async (stmts: unknown[]) => {
+      batch: async (stmts: readonly unknown[]) => {
         batched.push(stmts);
         return [];
       },
     };
 
     interface TxCtx {
-      tx?: D1TransactionContext<typeof mockDb, string>;
+      stagedStatements: string[];
     }
 
     await assert.rejects(
       () =>
-        Pipeline.send<TxCtx>({})
+        Pipeline.send<TxCtx>({ stagedStatements: [] })
           .transactional(mockDb)
           .through([
             (ctx) => {
-              ctx.tx?.stage("INSERT INTO users VALUES (1)");
+              ctx.stagedStatements.push("INSERT INTO users VALUES (1)");
               return ctx;
             },
             () => {
               throw new Error("Domain validation failed");
             },
           ])
-          .thenReturn(),
+          .then(),
       /Domain validation failed/,
     );
 
@@ -97,22 +101,29 @@ describe("Pipeline & withD1Transaction", () => {
   });
 
   it("withD1Transaction batches staged statements and skips batch when empty", async () => {
-    const batched: unknown[][] = [];
+    const batched: (readonly unknown[])[] = [];
     const mockDb = {
-      batch: async (stmts: unknown[]) => {
+      batch: async (stmts: readonly unknown[]) => {
         batched.push(stmts);
         return [];
       },
     };
 
-    const res = await withD1Transaction(mockDb, async (tx) => {
-      tx.stage("UPDATE accounts SET balance = 100");
-      return "ok";
-    });
-    assert.equal(res, "ok");
+    const res = await withD1Transaction(
+      mockDb,
+      { stagedStatements: [] as string[] },
+      async (tx) => {
+        tx.stagedStatements.push("UPDATE accounts SET balance = 100");
+      },
+    );
+    assert.deepEqual(res.stagedStatements, ["UPDATE accounts SET balance = 100"]);
     assert.equal(batched.length, 1);
 
-    await withD1Transaction(mockDb, async () => "noop");
+    await withD1Transaction(
+      mockDb,
+      { stagedStatements: [] as string[] },
+      async () => {},
+    );
     assert.equal(batched.length, 1);
   });
 });

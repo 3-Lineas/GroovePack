@@ -306,3 +306,22 @@ export const enToast = createApiToast({
    - `@/lib/api-action` $\rightarrow$ `@3lineas/groovepack/api-action`
    - `@/lib/api-toast` $\rightarrow$ `@3lineas/groovepack/api-toast`
 3. Remove the copied files from `src/lib/` once imports are updated.
+
+---
+
+## Internationalization (`@3lineas/groovepack/i18n`)
+
+`apiAction` and `apiToast` ship with a zero-dependency **5-language dictionary** (`en`, `es`, `pt`, `it`, `fr`) defaulting to **English (`"en"`)**.
+
+### Resolution Precedence (Highest to Lowest)
+1. Explicit message string passed to the call or factory (`defaultErrorMessage`, `loadingMessage`, `successMessage`, `errorMessage`).
+2. Explicit `locale` option (`apiAction({ locale: "es", ... })`, `apiToast({ locale: "pt", ... })`, `createApiToast({ locale: "fr" })`).
+3. Runtime locale configured via `setGroovepackLocale("es")` from `@3lineas/groovepack/i18n`.
+4. Environment variable (`GROOVEPACK_LOCALE`, `NEXT_PUBLIC_GROOVEPACK_LOCALE`, `VITE_GROOVEPACK_LOCALE`, `PUBLIC_GROOVEPACK_LOCALE`).
+5. Default fallback: `"en"`.
+
+```ts
+import { setGroovepackLocale } from "@3lineas/groovepack/i18n";
+
+setGroovepackLocale("es");
+```

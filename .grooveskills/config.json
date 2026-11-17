@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": "1.21.1",
   "harness": true,
   "language": "en",
   "agents": [
@@ -14,7 +14,24 @@
     "clean-architecture-ddd",
     "env-feature-flags",
     "typescript-clean",
-    "groove-harness"
+    "groove-harness",
+    "world-class-engineering",
+    "security-audit",
+    "valibot-validation",
+    "external-service-adapters",
+    "storage-file-adapters",
+    "auth-rbac-policies",
+    "controller-orchestration-queues",
+    "webhook-idempotency",
+    "caching-rate-limiting",
+    "testing-vitest",
+    "hono",
+    "workers-rpc-precision",
+    "frontend-design",
+    "react-core",
+    "react-advanced",
+    "react-create-page",
+    "nextjs-architecture"
   ],
-  "updatedAt": "2026-11-03T15:57:54.326Z"
+  "updatedAt": "2026-11-17T16:47:08.647Z"
 }

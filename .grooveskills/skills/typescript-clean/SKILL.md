@@ -1,11 +1,11 @@
 ---
 name: typescript-clean
-description: Advanced TypeScript 5.5+ standards, strict tsconfig rules, discriminated unions, satisfies operator, const type parameters, unknown over any, custom type guards, and elimination of unsafe type assertions (as / any). TRIGGER when writing or modifying TypeScript files (.ts, .tsx), type definitions, tsconfig.json, or when handling complex polymorphic domain models.
+description: Advanced TypeScript 5.5+ standards, strict tsconfig rules, discriminated unions, satisfies operator, const type parameters, unknown over any, atomic type isolation in @/types/, and elimination of unsafe type assertions (as / any). TRIGGER when writing or modifying TypeScript files (.ts, .tsx), type definitions, tsconfig.json, or when handling complex polymorphic domain models.
 ---
 
 # TypeScript Clean Code Standards (TS 5.5+)
 
-Guidelines for writing safe, expressive, and strictly typed TypeScript with zero unsafe casts, exhaustive pattern matching, and modern language features.
+Guidelines for writing safe, expressive, strictly typed TypeScript with zero unsafe casts, exhaustive pattern matching, and atomic domain type isolation.
 
 ---
 
@@ -15,43 +15,86 @@ Guidelines for writing safe, expressive, and strictly typed TypeScript with zero
    - `any` disables the compiler and hides runtime bugs. Use `unknown` with narrowers or generics.
    - Non-null assertion operator `!` assumes runtime state without proof. Use optional chaining `?.` or explicit guard clauses.
 
-2. **Discriminated Unions for Domain States**:
+2. **Strict Type Isolation (`@/types/{domain}/`)**:
+   - In modular domain architectures, **NEVER** write `interface` or `type` definitions inside DTOs, Actions, Routes, Hooks, or Utility helpers.
+   - **Exclusive Exception for UI Props**: In React UI components (`.tsx`), only the component's own `Props` interface (e.g., `interface ButtonProps { ... }`) may be declared inline. Any other domain model, entity, or data structure must live in `@/types/{domain}/{name}.type.ts`.
+   - **Next.js Page Co-location**: In Next.js/Vinext pages, types exclusive to a route live co-located in `src/app/<route>/types/{name}.type.ts` (1 type per file).
+   - Every contract has its own dedicated file: `@/types/{domain}/{name}.type.ts` (1 type/interface per file).
+   - Organize into domains: `common/`, `context/`, `db/`, `pipeline/`, `services/`, and `{domain}/`.
+
+3. **Strict Atomic File Rule (1 Function / 1 Method per File)**:
+   - Every file must export at most ONE function, method, action, route handler, component, hook, schema, or type.
+   - Never group multiple helpers or methods in one file; extract helpers to separate dedicated files.
+
+4. **Discriminated Unions for Domain States**:
    - Represent valid combinations of state using tagged unions (`type = "idle" | "loading" | "success" | "error"`).
    - Never use "optional soup" where every field is `x?: string`.
 
-3. **Exhaustive Type Checking with `never`**:
+5. **Exhaustive Type Checking with `never`**:
    - Every `switch` or conditional on a union must have an `assertNever(value)` exhaustive check in default branch.
 
-4. **Favor `satisfies` Over Type Annotations on Literals**:
+6. **Favor `satisfies` Over Type Annotations on Literals**:
    - `satisfies` checks that a value adheres to a contract without widening or discarding specific literal types.
 
-5. **`const` Type Parameters (TS 5.0+)**:
+7. **`const` Type Parameters (TS 5.0+)**:
    - Use `<const T>` in generic helper functions to preserve literal types without requiring `as const` at call site.
 
-6. **Custom Type Guards & Inferred Type Predicates (TS 5.5+)**:
+8. **Custom Type Guards & Inferred Type Predicates (TS 5.5+)**:
    - Use type predicates (`x is TargetType`) or rely on TS 5.5 automatic type narrowing for array filters.
 
-7. **Avoid Unsafe `as` Type Assertions**:
+9. **Avoid Unsafe `as` Type Assertions**:
    - Never use `value as SomeType` to bypass the type checker. Validate with Valibot schema or custom type guard first.
+
+10. **Hard Size Limit of <200 Lines**:
+   - Keep type definition files atomic and concise (target: 10-50 lines).
 
 ---
 
-## 2. Key Patterns
+## 2. Directory Structure for Type Isolation
+
+```text
+src/types/
+├── common/                           # Global shared contracts
+│   └── action-response.type.ts       # interface ActionResponse<T>
+├── context/                          # Infrastructure & runtime execution context
+│   ├── env.type.ts                   # interface Env (Bindings / Secrets)
+│   └── app-context.type.ts           # Context typing (Bindings, Variables)
+├── db/                               # Database client and ORM entities
+│   ├── database-client.type.ts       # Database client handle
+│   └── {entity}.type.ts              # Select / Insert schema types
+└── {domain}/                         # Domain-specific DTO & action contracts
+    ├── create-{entity}-input.type.ts # Inferred from input DTO
+    └── {entity}-response.type.ts     # Inferred from output DTO
+```
+
+---
+
+## 3. Key Patterns
 
 ### A. Discriminated Unions & Exhaustiveness
 
 ```ts
+// src/types/common/request-state.type.ts
 export type RequestState<T> =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "success"; data: T }
   | { status: "error"; error: Error };
+```
 
+```ts
+// src/common/utils/assert-never.ts
 export function assertNever(x: never): never {
   throw new Error(`Unexpected value: ${JSON.stringify(x)}`);
 }
+```
 
-export function renderStatus<T>(state: RequestState<T>): string {
+```ts
+// src/actions/status/render-status.action.ts
+import type { RequestState } from "@/types/common/request-state.type";
+import { assertNever } from "@/common/utils/assert-never";
+
+export function renderStatusAction<T>(state: RequestState<T>): string {
   switch (state.status) {
     case "idle":
       return "Ready to start.";
@@ -68,33 +111,27 @@ export function renderStatus<T>(state: RequestState<T>): string {
 ```
 
 ### B. `satisfies` vs Widening Annotations
-
 ```ts
 type RouteConfig = Record<string, { path: string; isProtected: boolean }>;
 
-// ✅ Preserves exact key literals and structure
 export const APP_ROUTES = {
   HOME: { path: "/", isProtected: false },
   DASHBOARD: { path: "/dashboard", isProtected: true },
 } satisfies RouteConfig;
-
-// APP_ROUTES.HOME.path is typed as "/" not string!
 ```
 
 ### C. Const Generic Parameters
-
 ```ts
 export function createEnumSet<const T extends readonly string[]>(values: T): ReadonlySet<T[number]> {
   return new Set(values);
 }
 
-// Inferred as ReadonlySet<"admin" | "editor" | "viewer">
 export const ROLES = createEnumSet(["admin", "editor", "viewer"]);
 ```
 
 ---
 
-## 3. Strict TSConfig Expectations
+## 4. Strict TSConfig Expectations
 
 Always enable:
 - `"strict": true`
@@ -104,8 +141,8 @@ Always enable:
 
 ---
 
-## 4. Sibling Skills
+## 5. Sibling Skills
 
-- **`best-practices`**: Universal clean code rules and 200-line limit.
+- **`best-practices`**: Universal clean code rules, descriptive naming, and 200-line limit.
 - **`valibot-validation`**: Runtime validation inferred to static TS types.
-- Reference guide: `references/js-ts-antipatterns.md`.
+- Reference guide: `./references/js-ts-antipatterns.md`.

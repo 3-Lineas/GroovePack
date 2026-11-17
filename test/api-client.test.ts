@@ -19,8 +19,8 @@ describe("createApiClient", () => {
     const api = createApiClient({
       baseUrl: "https://api.example.com/v1/",
       getToken: () => "secret-jwt",
-      headers: { "X-Custom": "123" },
-      fetch: mockFetch,
+      defaultHeaders: { "X-Custom": "123" },
+      fetcher: mockFetch,
     });
 
     await api.post("/orders", { total: BigInt(1500) });
@@ -29,7 +29,7 @@ describe("createApiClient", () => {
     assert.equal(capturedHeaders?.get("Authorization"), "Bearer secret-jwt");
     assert.equal(capturedHeaders?.get("X-Custom"), "123");
     assert.equal(capturedHeaders?.get("Content-Type"), "application/json");
-    assert.equal(capturedBody, '{"total":1500}');
+    assert.equal(capturedBody, '{"total":"1500"}');
   });
 
   it("createHonoClient preserves Hono RPC type inference and injects auth headers", async () => {
@@ -43,7 +43,8 @@ describe("createApiClient", () => {
     const client = createHonoClient<AppType>({
       baseUrl: "https://rpc.example.com",
       getToken: () => "rpc-token",
-      fetch: async (input, init) => app.request(input, init),
+      fetcher: async (input: RequestInfo | URL, init?: RequestInit) =>
+        app.request(input, init),
     });
 
     const res = await client.ping.$get();

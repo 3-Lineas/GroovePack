@@ -1,78 +1,88 @@
-import { describe, it } from "node:test";
+import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { apiAction, type ErrorLogger } from "../src/api-action/index";
-
-const silentLogger: ErrorLogger = {
-  error: () => {},
-};
+import { apiAction } from "../src/api-action/index.js";
+import { GROOVEPACK_MESSAGES, setGroovepackLocale } from "../src/i18n/index.js";
 
 describe("apiAction", () => {
-  it("handles 2xx MinimalResponse with ActionResponse payload", async () => {
-    let successPayload: unknown = null;
+  afterEach(() => {
+    setGroovepackLocale(undefined);
+    delete process.env.GROOVEPACK_LOCALE;
+  });
 
-    const res = await apiAction<{ id: number }>({
-      actionName: "getItem",
-      logger: silentLogger,
+  it("handles 2xx MinimalResponse with ActionResponse payload", async () => {
+    const result = await apiAction<{ id: number }>({
       apiCall: async () => ({
         ok: true,
         status: 200,
-        text: async () => "",
-        json: async () => ({ success: true, message: "OK", data: { id: 42 } }),
+        json: async () => ({ success: true, data: { id: 1 } }),
       }),
-      onSuccess: (data) => {
-        successPayload = data;
-      },
     });
 
-    assert.equal(res.success, true);
-    assert.deepEqual(res.data, { id: 42 });
-    assert.deepEqual(successPayload, { id: 42 });
+    assert.equal(result.success, true);
+    assert.deepEqual(result.data, { id: 1 });
   });
 
   it("handles non-2xx HTTP error with JSON message", async () => {
-    const res = await apiAction({
-      actionName: "createItem",
-      logger: silentLogger,
+    const result = await apiAction({
       apiCall: async () => ({
         ok: false,
         status: 400,
-        text: async () => JSON.stringify({ message: "Invalid input", error: "VALIDATION" }),
-        json: async () => ({}),
+        json: async () => ({ error: "Invalid payload" }),
       }),
     });
 
-    assert.equal(res.success, false);
-    assert.equal(res.message, "Invalid input");
-    assert.equal(res.error, "VALIDATION");
+    assert.equal(result.success, false);
+    assert.equal(result.error, "Invalid payload");
   });
 
-  it("uses custom defaultErrorMessage on non-JSON HTTP error", async () => {
-    const res = await apiAction({
-      actionName: "failPlain",
-      logger: silentLogger,
-      defaultErrorMessage: "Custom fallback error",
+  it("uses English ('en') default fallback on non-JSON HTTP error", async () => {
+    const result = await apiAction({
       apiCall: async () => ({
         ok: false,
         status: 500,
-        text: async () => "Internal Server Error",
+        json: async () => {
+          throw new Error("invalid json");
+        },
+      }),
+    });
+
+    assert.equal(result.success, false);
+    assert.equal(result.error, GROOVEPACK_MESSAGES.en.unexpectedError);
+  });
+
+  it("uses translated fallback when locale or GROOVEPACK_LOCALE is set", async () => {
+    const spanishResult = await apiAction({
+      locale: "es",
+      apiCall: async () => ({
+        ok: false,
+        status: 500,
+        json: async () => ({}),
+      }),
+    });
+    assert.equal(spanishResult.error, GROOVEPACK_MESSAGES.es.unexpectedError);
+
+    process.env.GROOVEPACK_LOCALE = "fr";
+    const frenchResult = await apiAction({
+      apiCall: async () => {
+        throw new Error("Network failure");
+      },
+      onError: () => {},
+    });
+    assert.equal(frenchResult.error, GROOVEPACK_MESSAGES.fr.unexpectedError);
+  });
+
+  it("uses custom defaultErrorMessage over locale fallback", async () => {
+    const result = await apiAction({
+      locale: "es",
+      defaultErrorMessage: "Custom error",
+      apiCall: async () => ({
+        ok: false,
+        status: 500,
         json: async () => ({}),
       }),
     });
 
-    assert.equal(res.success, false);
-    assert.equal(res.message, "Custom fallback error");
-  });
-
-  it("catches unexpected exceptions gracefully", async () => {
-    const res = await apiAction({
-      actionName: "crash",
-      logger: silentLogger,
-      apiCall: async () => {
-        throw new Error("Network down");
-      },
-    });
-
-    assert.equal(res.success, false);
-    assert.equal(res.error, "Network down");
+    assert.equal(result.success, false);
+    assert.equal(result.error, "Custom error");
   });
 });
