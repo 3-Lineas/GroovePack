@@ -1,16 +1,39 @@
 {
   "name": "@3lineas/groovepack",
-  "version": "0.1.4",
-  "description": "Interactive CLI for sharing reusable library templates across projects without npm package clutter",
+  "version": "1.0.0",
+  "description": "Zero-dependency & modular infrastructure primitives for TypeScript, Cloudflare Workers (D1, Hono), React, and Astro.",
   "type": "module",
-  "bin": {
-    "groovepack": "dist/index.js"
-  },
+  "sideEffects": false,
   "files": [
     "dist",
-    "registry",
     "README.md"
   ],
+  "exports": {
+    "./logger": {
+      "types": "./dist/logger/index.d.ts",
+      "import": "./dist/logger/index.js"
+    },
+    "./pipeline": {
+      "types": "./dist/pipeline/pipeline.d.ts",
+      "import": "./dist/pipeline/pipeline.js"
+    },
+    "./pipeline/with-d1-transaction": {
+      "types": "./dist/pipeline/with-d1-transaction.d.ts",
+      "import": "./dist/pipeline/with-d1-transaction.js"
+    },
+    "./api-client": {
+      "types": "./dist/api-client/index.d.ts",
+      "import": "./dist/api-client/index.js"
+    },
+    "./api-action": {
+      "types": "./dist/api-action/index.d.ts",
+      "import": "./dist/api-action/index.js"
+    },
+    "./api-toast": {
+      "types": "./dist/api-toast/index.d.ts",
+      "import": "./dist/api-toast/index.js"
+    }
+  },
   "publishConfig": {
     "access": "public"
   },
@@ -23,28 +46,40 @@
     "url": "https://github.com/3-Lineas/GroovePack/issues"
   },
   "scripts": {
-    "dev": "tsx src/index.ts",
     "build": "tsup",
     "prepublishOnly": "pnpm run check-types && pnpm run build",
     "check-types": "tsc --noEmit",
-    "test": "tsx test/rollback-and-install.test.ts"
+    "test": "tsx --test test/*.test.ts"
   },
-  "dependencies": {
-    "@clack/prompts": "^0.8.2",
-    "picocolors": "^1.1.1"
+  "peerDependencies": {
+    "hono": ">=4.0.0",
+    "sonner": ">=1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "hono": {
+      "optional": true
+    },
+    "sonner": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/node": "^22.10.1",
+    "hono": "^4.7.0",
+    "sonner": "^2.0.0",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   },
   "keywords": [
-    "cli",
-    "scaffold",
-    "code-sharing",
-    "shadcn-style",
-    "groovepack"
+    "groovepack",
+    "hono",
+    "cloudflare-d1",
+    "pipeline",
+    "logger",
+    "api-client",
+    "api-action",
+    "sonner"
   ],
   "author": "3lineas",
   "license": "MIT"

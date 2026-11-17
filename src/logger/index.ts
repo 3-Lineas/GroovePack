@@ -4,7 +4,7 @@
  *
  * @example
  * ```typescript
- * import { Logger } from "@/lib/logger";
+ * import { Logger } from "@3lineas/groovepack/logger";
  *
  * // 1. Create a logger instance for your service or domain
  * const logger = new Logger("AuthService");
@@ -43,7 +43,7 @@ export interface LogContext {
  *
  * @example
  * ```typescript
- * import { Logger } from "@/lib/logger";
+ * import { Logger } from "@3lineas/groovepack/logger";
  *
  * const logger = new Logger("PaymentModule");
  *

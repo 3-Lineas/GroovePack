@@ -5,6 +5,8 @@
  */
 import type { PipeAction, D1TransactionContext, BatchCapableDb } from "./types";
 
+export type { PipeAction, D1TransactionContext, BatchCapableDb } from "./types";
+
 /**
  * Pipeline processor inspired by the Laravel pipeline pattern.
  *
@@ -24,7 +26,7 @@ import type { PipeAction, D1TransactionContext, BatchCapableDb } from "./types";
  *
  * @example
  * ```typescript
- * import { Pipeline } from "@/lib/pipeline/pipeline";
+ * import { Pipeline } from "@3lineas/groovepack/pipeline";
  *
  * const result = await Pipeline.send<CreateUserContext>({ db, input })
  *   .transactional(db)

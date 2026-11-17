@@ -5,7 +5,7 @@
  *
  * @example
  * ```typescript
- * import { createApiClient, createHonoClient } from "@/lib/api-client";
+ * import { createApiClient, createHonoClient } from "@3lineas/groovepack/api-client";
  *
  * // Example A: REST Client (React, Next.js, Astro, Node)
  * export const api = createApiClient({
@@ -198,7 +198,7 @@ function serializeBody(body: unknown): string | undefined {
  *
  * @example
  * ```typescript
- * import { createApiClient } from "@/lib/api-client";
+ * import { createApiClient } from "@3lineas/groovepack/api-client";
  *
  * export const api = createApiClient({
  *   baseUrl: "https://api.myapp.com/v1",
@@ -263,7 +263,7 @@ export function createApiClient(config: ApiClientConfig = {}): RestApiClient {
  * @template TRouter - Hono router or application type (e.g. `AppType`).
  * @example
  * ```typescript
- * import { createHonoClient } from "@/lib/api-client";
+ * import { createHonoClient } from "@3lineas/groovepack/api-client";
  * import type { AppType } from "api";
  *
  * export const api = createHonoClient<AppType>({
