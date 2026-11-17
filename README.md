@@ -1,204 +1,308 @@
-<div align="center">
+# `@3lineas/groovepack`
 
-# 📦 GroovePack (`@3lineas/groovepack`)
+Zero-dependency & modular infrastructure primitives for **TypeScript**, **Cloudflare Workers (D1, Hono)**, **React**, and **Astro**.
 
-**A modern, zero-dependency source code registry CLI for high-performance TypeScript & React applications.**
-
-Inspired by the `shadcn` philosophy: **don't install heavy, unmaintainable dependencies—copy battle-tested, strictly typed, adaptable source modules directly into your project.**
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue?logo=typescript)](https://www.typescriptlang.org/)
-[![CLI](https://img.shields.io/badge/CLI-@clack%2Fprompts-cyan)](https://github.com/natemoo-re/clack)
-[![Turborepo-free](https://img.shields.io/badge/Monorepo-Independent-green)](#)
-
-</div>
+`@3lineas/groovepack` provides standardized, production-tested building blocks for backend pipelines, atomic Cloudflare D1 transactions, structured logging, typed Hono RPC / REST clients, standardized `ActionResponse<T>` wrappers, and Sonner toast orchestration — exposed via **Subpath Exports** with `sideEffects: false` and **optional peer dependencies**.
 
 ---
 
-## 🚀 Quick Start
+## Table of Contents
 
-Run the interactive CLI directly without installing anything globally:
+- [Why Subpath Exports?](#why-subpath-exports)
+- [Installation](#installation)
+- [Available Modules](#available-modules)
+- [1. `@3lineas/groovepack/logger`](#1-3lineasgroovepacklogger)
+- [2. `@3lineas/groovepack/pipeline`](#2-3lineasgroovepackpipeline)
+- [3. `@3lineas/groovepack/pipeline/with-d1-transaction`](#3-3lineasgroovepackpipelinewith-d1-transaction)
+- [4. `@3lineas/groovepack/api-client`](#4-3lineasgroovepackapi-client)
+- [5. `@3lineas/groovepack/api-action`](#5-3lineasgroovepackapi-action)
+- [6. `@3lineas/groovepack/api-toast`](#6-3lineasgroovepackapi-toast)
+- [End-to-End Architecture Example](#end-to-end-architecture-example)
+- [Migrating from v0.x (CLI Copy-Paste)](#migrating-from-v0x-cli-copy-paste)
+
+---
+
+## Why Subpath Exports?
+
+- **Zero Dead Weight**: Backend workers importing `/logger` and `/pipeline` never bundle `sonner` or frontend code. Frontend apps importing `/api-toast` never bundle server utilities.
+- **No Barrel Files**: Every module has its own dedicated entry point for optimal tree-shaking.
+- **Immutable Infrastructure**: Lives in `node_modules` with SemVer guarantees, preventing accidental local drift across monorepo apps.
+
+---
+
+## Installation
 
 ```bash
-npx @3lineas/groovepack
+pnpm add @3lineas/groovepack
 ```
 
-GroovePack will guide you through:
-1. **Selecting a Domain Category** (`Common`, `React`, `Hono / Next Server`, or `Browse all`).
-2. **Selecting Libraries** via an interactive multi-select prompt.
-3. **Choosing the Destination Path** (defaults to `src/lib/<lib>`).
-4. **Copying the Source Code** cleanly with transactional rollback guarantees.
+### Optional Peer Dependencies
+
+Install only what your app actually uses:
+
+| Subpath | Required Peer Dependency | Target Environment |
+| :--- | :--- | :--- |
+| `/logger` | *None (0 deps)* | Node, Cloudflare Workers, Browser |
+| `/pipeline` | *None (0 deps)* | Cloudflare Workers, Node |
+| `/pipeline/with-d1-transaction` | *None (0 deps)* | Cloudflare Workers (D1 / Drizzle) |
+| `/api-action` | *None (0 deps)* | React, Astro, Next.js, Node |
+| `/api-client` | `hono >= 4.0.0` *(only if using `createHonoClient`)* | Frontend / Edge |
+| `/api-toast` | `sonner >= 1.0.0` | React / Browser |
 
 ---
 
-## 💡 Why GroovePack?
+## Available Modules
 
-Traditional npm packages often introduce:
-- Dependency bloat and version conflicts across monorepos.
-- Opaque abstractions that are difficult to customize for specific backend requirements.
-- Overhead in CI/CD pipelines.
-
-**GroovePack provides:**
-- **Zero Package Bloat**: Code lives in your repo (`src/lib/...`). You own it, customize it, and debug it with standard breakpoints.
-- **Enterprise-Grade Typing**: 100% strict TypeScript without `any` or loose casts.
-- **Transactional Rollback (Zero-Crash Policy)**: If disk writing, permissions, or I/O encounters an issue, GroovePack restores prior files and cleans newly created folders automatically without terminating the process.
-- **Universal Runtime Compatibility**: Node.js, Cloudflare Workers, Next.js (SSR / RSC), Astro Actions, and React Vite SPAs.
+1. `@3lineas/groovepack/logger` — Structured Logger (ANSI in dev, JSON in prod).
+2. `@3lineas/groovepack/pipeline` — Laravel-inspired sequential `Pipeline` with D1 batching.
+3. `@3lineas/groovepack/pipeline/with-d1-transaction` — Standalone `withD1Transaction` wrapper.
+4. `@3lineas/groovepack/api-client` — `createApiClient` (REST) & `createHonoClient` (Hono RPC).
+5. `@3lineas/groovepack/api-action` — Polymorphic `apiAction` wrapper returning `ActionResponse<T>`.
+6. `@3lineas/groovepack/api-toast` — `apiToast`, `toasted`, and `createApiToast` for Sonner.
 
 ---
 
-## 📚 Registry Catalog
+## 1. `@3lineas/groovepack/logger`
 
-### 1. `common`
-
-#### 🪵 `logger`
-Universal structured logger designed for seamless local development and production observability.
-- **Local Development**: Human-readable ANSI color-coded terminal output with `[file:line]` context tracing.
-- **Production / Cloudflare Workers**: Fast, structured JSON serialization compatible with log aggregators (Datadog, Cloudflare Logpush, Axiom).
-- **Default Target**: `src/lib/logger`
+Universal structured logger that automatically adapts to the runtime:
+- **Development / Test** (`NODE_ENV === "development"` or `"test"`): Outputs readable, ANSI-colored console logs.
+- **Production / Cloudflare Workers**: Outputs single-line structured JSON for log indexing.
 
 ```typescript
-import { Logger } from "@/lib/logger";
+import { Logger, type LogContext } from "@3lineas/groovepack/logger";
 
-const logger = new Logger("AuthService");
+const logger = new Logger("API:Sales");
 
-logger.info("User registered successfully", { userId: "usr_101" });
-logger.warn("Rate limit approaching", { ip: "192.168.1.1" });
-logger.error("Database connection failure", { pool: "primary" }, error);
+logger.debug("Validating cart items", { itemCount: 3 });
+logger.info("Sale completed", { saleId: "sal_123", totalCents: 4500 });
+logger.warn("Low inventory", { productId: "prod_9", remaining: 2 });
+
+try {
+  await processPayment();
+} catch (error) {
+  logger.error("Payment gateway timeout", { file: "checkout.ts", line: 42 }, error);
+}
 ```
 
-#### 🌐 `api-client`
-Hybrid universal HTTP client featuring REST convenience methods, dynamic authentication header injection, and optional Hono RPC integration.
-- **REST Client**: Typed `get`, `post`, `put`, `patch`, `delete`, and `fetch` with BigInt-safe JSON serialization.
-- **Authentication**: Dynamic bearer token resolver (browser `localStorage`, cookies, or custom async `getToken()` callback).
-- **Hono RPC Factory**: Exported `createHonoClient<AppType>()` helper to instantiate `hc<AppType>` with shared base URL and auth headers.
-- **Default Target**: `src/lib/api-client`
+---
+
+## 2. `@3lineas/groovepack/pipeline`
+
+Sequential multi-action processor inspired by Laravel's `Pipeline`.
+Each step is an isolated atomic function `(context: TContext) => Promise<TContext> | TContext`.
+
+### Basic Usage
 
 ```typescript
-import { createApiClient, createHonoClient } from "@/lib/api-client";
+import { Pipeline, type PipeAction } from "@3lineas/groovepack/pipeline";
+
+interface OrderContext {
+  items: Array<{ id: string; price: number }>;
+  total: number;
+}
+
+const calculateTotal: PipeAction<OrderContext> = (ctx) => ({
+  ...ctx,
+  total: ctx.items.reduce((acc, item) => acc + item.price, 0),
+});
+
+const result = await Pipeline.send<OrderContext>({ items: [{ id: "1", price: 500 }], total: 0 })
+  .through([calculateTotal])
+  .thenReturn();
+```
+
+### Transactional Mode with Cloudflare D1 / Drizzle ORM
+
+Calling `.transactional(db)` injects `tx: D1TransactionContext` into `context.tx`.
+- Mutations staged via `context.tx.stage(...)` are held in memory.
+- When `.thenReturn()` or `.then()` finishes, all staged statements are committed atomically via `db.batch()`.
+- **Preventive In-Memory Rollback**: If any pipe throws an error, `db.batch()` is **never called** — zero mutations reach D1.
+
+```typescript
+import { Pipeline, type D1TransactionContext, type PipeAction } from "@3lineas/groovepack/pipeline";
+
+interface CreateSaleContext {
+  input: { productId: string; quantity: number };
+  tx?: D1TransactionContext<D1Database, D1PreparedStatement>;
+}
+
+const validateStock: PipeAction<CreateSaleContext> = async (ctx) => {
+  const row = await ctx.tx!.db
+    .prepare("SELECT stock FROM products WHERE id = ?")
+    .bind(ctx.input.productId)
+    .first<{ stock: number }>();
+
+  if (!row || row.stock < ctx.input.quantity) {
+    throw new Error("Insufficient stock");
+  }
+  return ctx;
+};
+
+const stageSale: PipeAction<CreateSaleContext> = (ctx) => {
+  ctx.tx!.stage(
+    ctx.tx!.db
+      .prepare("UPDATE products SET stock = stock - ? WHERE id = ?")
+      .bind(ctx.input.quantity, ctx.input.productId),
+    ctx.tx!.db
+      .prepare("INSERT INTO sales (product_id, quantity) VALUES (?, ?)")
+      .bind(ctx.input.productId, ctx.input.quantity),
+  );
+  return ctx;
+};
+
+await Pipeline.send<CreateSaleContext>({ input: { productId: "p1", quantity: 2 } })
+  .transactional(env.DB)
+  .through([validateStock, stageSale])
+  .thenReturn();
+```
+
+---
+
+## 3. `@3lineas/groovepack/pipeline/with-d1-transaction`
+
+Standalone transactional helper for workflows that don't need the full `Pipeline` class:
+
+```typescript
+import { withD1Transaction } from "@3lineas/groovepack/pipeline/with-d1-transaction";
+
+const saleId = await withD1Transaction(env.DB, async (tx) => {
+  const user = await tx.db.prepare("SELECT id FROM users WHERE id = ?").bind(userId).first();
+  if (!user) throw new Error("User not found");
+
+  tx.stage(
+    tx.db.prepare("INSERT INTO sales (id, user_id) VALUES (?, ?)").bind("s_1", userId),
+    tx.db.prepare("UPDATE users SET last_sale_at = ? WHERE id = ?").bind(Date.now(), userId),
+  );
+
+  return "s_1";
+});
+```
+
+---
+
+## 4. `@3lineas/groovepack/api-client`
+
+Unified factory for both **REST** (`createApiClient`) and **Hono RPC** (`createHonoClient`), with automatic `Authorization: Bearer <token>` injection and `BigInt`-safe JSON serialization.
+
+### Hono RPC Client
+
+```typescript
+import { createHonoClient } from "@3lineas/groovepack/api-client";
 import type { AppType } from "api";
 
-// 1. REST Client
-export const api = createApiClient({
-  baseUrl: "https://api.example.com",
-  getToken: () => localStorage.getItem("token"),
-});
-
-const res = await api.get("/users/me");
-
-// 2. Hono RPC Client (Optional)
 export const rpc = createHonoClient<AppType>({
-  baseUrl: "http://localhost:8787",
+  baseUrl: import.meta.env.VITE_API_URL,
+  getToken: () => localStorage.getItem("auth_token"),
 });
-const productRes = await rpc.v1.products.$get();
+
+// Full end-to-end type inference
+const res = await rpc.v1.products.$get();
+```
+
+### REST Client & Token Helpers
+
+```typescript
+import {
+  createApiClient,
+  getStoredToken,
+  setStoredToken,
+  removeStoredToken,
+} from "@3lineas/groovepack/api-client";
+
+export const api = createApiClient({
+  baseUrl: "https://api.example.com/v1",
+  tokenStorageKey: "auth_token",
+  headers: { "X-App-Version": "1.0.0" },
+});
+
+const response = await api.post("/orders", { total: BigInt(1500) });
 ```
 
 ---
 
-### 2. `react`
+## 5. `@3lineas/groovepack/api-action`
 
-#### ⚡ `api-action`
-Universal async operation and API wrapper for React components, Server Actions, and custom hooks.
-- **Polymorphic Compatibility**: Natively accepts Hono RPC responses, standard `fetch` (`Response`), structured `ActionResponse<T>`, or raw promises.
-- **Strict Error-Only Logging**: Only logs on actual failures (`!response.ok`, `!result.success`, or unexpected runtime crashes). Does not pollute console logs on successful operations.
-- **Default Target**: `src/lib/api-action`
+Polymorphic wrapper that normalizes Hono RPC responses, standard `fetch` responses, `ActionResponse<T>`, or raw promises into a predictable `ActionResponse<T>` contract. Logs **exclusively on errors**.
 
 ```typescript
-import { apiAction } from "@/lib/api-action";
-import { api } from "@/lib/api-client";
+import { apiAction, type ActionResponse } from "@3lineas/groovepack/api-action";
+import { Logger } from "@3lineas/groovepack/logger";
+import { rpc } from "@/lib/rpc";
 
-export async function fetchCustomersAction() {
-  return apiAction<Customer[]>({
-    actionName: "fetchCustomers",
-    apiCall: () => api.get("/customers"),
-    onSuccess: (customers) => {
-      console.log(`Loaded ${customers.length} customers`);
+const logger = new Logger("Web:Products");
+
+export async function createProductAction(
+  input: { name: string; price: number },
+): Promise<ActionResponse<Product>> {
+  return apiAction<Product>({
+    actionName: "createProduct",
+    logger,
+    defaultErrorMessage: "Could not create product. Please try again.",
+    apiCall: () => rpc.v1.products.$post({ json: input }),
+    onSuccess: (product) => {
+      console.log("Created:", product.id);
     },
   });
 }
 ```
 
-#### 🔔 `api-toast`
-User feedback utility built on top of `sonner` (`toast.promise`).
-- **Tri-State Feedback**: Automates `loading`, `success`, and `error` toasts for any `apiAction` or async procedure.
-- **Typed Return**: Directly returns the underlying `Promise<ActionResponse<T>>` for component state inspection.
-- **Full Backward Compatibility**: Exports both `apiToast` and `toasted` aliases.
-- **Default Target**: `src/lib/api-toast`
+---
+
+## 6. `@3lineas/groovepack/api-toast`
+
+Orchestrates async actions with **Sonner** loading, success, and error toasts, returning the resolved `ActionResponse<T>`.
 
 ```typescript
-import { apiToast } from "@/lib/api-toast";
-import { loginAction } from "@/actions/auth";
+import { apiToast, toasted, createApiToast } from "@3lineas/groovepack/api-toast";
 
-const handleSubmit = async (values: LoginFormValues) => {
-  const result = await apiToast({
-    action: () => loginAction(values),
-    loadingMessage: "Authenticating credentials...",
-    successMessage: (res) => `Welcome back, ${res.data?.name}!`,
-    onSuccess: () => router.push("/dashboard"),
-    onError: (err) => console.error("Login failed:", err),
-  });
+// Standard usage (Spanish defaults)
+const res = await apiToast({
+  action: () => createProductAction(values),
+  loadingMessage: "Guardando producto...",
+  successMessage: (r) => `Producto "${r.data?.name}" creado`,
+  onSuccess: () => navigate("/products"),
+});
 
-  if (result.success) {
-    // Form submission complete
-  }
-};
+// Backward-compatible alias
+await toasted({
+  action: () => deleteProductAction(id),
+  loadingMessage: "Eliminando...",
+});
+
+// Custom project-wide defaults (e.g., English-only app)
+export const enToast = createApiToast({
+  defaultLoadingMessage: "Processing...",
+  defaultSuccessMessage: "Completed successfully.",
+  defaultErrorMessage: "Something went wrong.",
+});
 ```
 
 ---
 
-### 3. `server`
+## End-to-End Architecture Example
 
-#### 🚀 `pipeline`
-Laravel-style sequential execution pipeline with preventive in-memory rollback and atomic Cloudflare D1 batching.
-- **Drizzle & D1 Agnostic**: Works seamlessly with native Cloudflare D1 (`env.DB` / `D1PreparedStatement`), Drizzle ORM (`drizzle(env.DB)`), or pure in-memory business logic.
-- **Strict Zero-Barrel Architecture**: Concrete modular files (`pipeline.ts`, `with-d1-transaction.ts`, `types.ts`, `README.md`) designed for direct imports.
-- **Preventive Rollback**: If any action throws an error (e.g. domain exception), the pipeline stops immediately and zero mutations hit D1.
-- **Atomic Batch Commit**: Staged statements (`tx.stage(...)`) are committed in a single atomic `db.batch()` call upon completion.
-- **Default Target**: `src/lib/pipeline`
-
-```typescript
-import { Pipeline } from "@/lib/pipeline/pipeline";
-import type { D1TransactionContext } from "@/lib/pipeline/types";
-
-// 1. Native Cloudflare D1 (env.DB)
-const result = await Pipeline.send<UserContext>({ db: env.DB, input })
-  .transactional(env.DB)
-  .through([
-    async (ctx) => {
-      // Immediate read
-      const existing = await ctx.tx!.db.prepare("SELECT id FROM users WHERE email = ?").bind(ctx.input.email).first();
-      if (existing) throw new Error("Email already registered");
-      
-      // Stage atomic mutation
-      ctx.tx!.stage(
-        ctx.tx!.db.prepare("INSERT INTO users (id, email) VALUES (?, ?)").bind(newId, ctx.input.email)
-      );
-      return ctx;
-    }
-  ])
-  .thenReturn();
-
-// 2. Drizzle ORM on D1
-const res = await Pipeline.send<UserContext>({ db, input })
-  .transactional(db)
-  .through([validateEmailAction, stageCreateUserAction])
-  .then((ctx) => ctx.createdUser!);
+```text
+[React Form]
+  └─> apiToast({ action: () => createSaleAction(data) })        (@3lineas/groovepack/api-toast)
+        └─> apiAction({ apiCall: () => rpc.v1.sales.$post() })  (@3lineas/groovepack/api-action)
+              └─> createHonoClient<AppType>()                   (@3lineas/groovepack/api-client)
+                    └─> [Hono API Worker]
+                          └─> Pipeline.send(ctx).transactional(db).through([...]) (@3lineas/groovepack/pipeline)
 ```
 
 ---
 
-## 🛡️ Fault Tolerance & Atomic Rollbacks
+## Migrating from v0.x (CLI Copy-Paste)
 
-When installing libraries, GroovePack uses an internal `RollbackManager` that:
-1. Tracks all filesystem operations and directories created during the transaction.
-2. Backs up pre-existing destination files in memory before applying changes.
-3. If an error occurs (such as permission denials, path errors, or disk write failures):
-   - Restores original file contents.
-   - Removes newly written files.
-   - Cleans up empty directory segments.
-   - Reports the exact failure cause in the terminal **without crashing or interrupting the installation of other selected packages**.
-
----
-
-## 📄 License
-
-MIT © [3-Lineas](https://github.com/3-Lineas)
+1. Install the package:
+   ```bash
+   pnpm add @3lineas/groovepack
+   ```
+2. Replace local `@/lib/*` imports with package subpath imports:
+   - `@/lib/logger` $\rightarrow$ `@3lineas/groovepack/logger`
+   - `@/lib/pipeline/pipeline` $\rightarrow$ `@3lineas/groovepack/pipeline`
+   - `@/lib/pipeline/with-d1-transaction` $\rightarrow$ `@3lineas/groovepack/pipeline/with-d1-transaction`
+   - `@/lib/api-client` $\rightarrow$ `@3lineas/groovepack/api-client`
+   - `@/lib/api-action` $\rightarrow$ `@3lineas/groovepack/api-action`
+   - `@/lib/api-toast` $\rightarrow$ `@3lineas/groovepack/api-toast`
+3. Remove the copied files from `src/lib/` once imports are updated.

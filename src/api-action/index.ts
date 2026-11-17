@@ -5,7 +5,7 @@
  *
  * @example
  * ```typescript
- * import { apiAction } from "@/lib/api-action";
+ * import { apiAction } from "@3lineas/groovepack/api-action";
  * import { api } from "@/lib/api-client";
  *
  * // 1. Wrapping a REST / Fetch request
@@ -61,7 +61,7 @@ export interface MinimalResponse {
 }
 
 /**
- * Generic interface for error loggers (compatible with Logger from @/lib/logger).
+ * Generic interface for error loggers (compatible with Logger from @3lineas/groovepack/logger).
  */
 export interface ErrorLogger {
   error: (message: string, context?: Record<string, unknown>, ...args: unknown[]) => void;
@@ -107,6 +107,8 @@ export interface ApiActionOptions<T> {
   actionName: string;
   /** Custom logger instance (must implement error method). Defaults to internal error logger. */
   logger?: ErrorLogger;
+  /** Optional custom fallback message when an HTTP or unexpected error occurs without a backend message */
+  defaultErrorMessage?: string;
 }
 
 /**
@@ -157,6 +159,7 @@ async function handleHttpResponse<T>(
   response: MinimalResponse,
   actionName: string,
   logger: ErrorLogger,
+  defaultErrorMessage?: string,
 ): Promise<ActionResponse<T>> {
   const logContext = { actionName, status: response.status };
 
@@ -176,7 +179,9 @@ async function handleHttpResponse<T>(
 
     return {
       success: false,
-      message: "No se pudo procesar la solicitud en el servidor. Por favor, intenta de nuevo.",
+      message:
+        defaultErrorMessage ||
+        "No se pudo procesar la solicitud en el servidor. Por favor, intenta de nuevo.",
       error: `HTTP ${response.status}: ${errorText}`,
     };
   }
@@ -194,7 +199,7 @@ async function handleHttpResponse<T>(
       );
       return {
         success: false,
-        message: parsedBody.message || "La operación no se pudo completar.",
+        message: parsedBody.message || defaultErrorMessage || "La operación no se pudo completar.",
         error: parsedBody.error,
       };
     }
@@ -219,7 +224,7 @@ async function handleHttpResponse<T>(
  * Features:
  * - Polymorphic: seamlessly accepts Hono RPC responses, standard fetch responses, ActionResponses, or raw promises.
  * - Strict Error-Only Logging: logs exclusively when errors occur (HTTP status != 2xx, business failure, or runtime crash).
- * - Safe error message extraction with user-friendly Spanish fallbacks.
+ * - Safe error message extraction with user-friendly Spanish fallbacks (overridable via `defaultErrorMessage`).
  *
  * @template T - Type of the success data payload returned by the action.
  * @param options - Execution options including the API call, action name, and optional onSuccess callback.
@@ -239,7 +244,13 @@ async function handleHttpResponse<T>(
  * ```
  */
 export async function apiAction<T>(options: ApiActionOptions<T>): Promise<ActionResponse<T>> {
-  const { apiCall, onSuccess, actionName, logger = defaultErrorLogger } = options;
+  const {
+    apiCall,
+    onSuccess,
+    actionName,
+    logger = defaultErrorLogger,
+    defaultErrorMessage,
+  } = options;
   const logContext = { actionName };
 
   try {
@@ -248,7 +259,7 @@ export async function apiAction<T>(options: ApiActionOptions<T>): Promise<Action
     let finalResponse: ActionResponse<T>;
 
     if (isMinimalResponse(result)) {
-      finalResponse = await handleHttpResponse<T>(result, actionName, logger);
+      finalResponse = await handleHttpResponse<T>(result, actionName, logger, defaultErrorMessage);
     } else if (isActionResponse<T>(result)) {
       if (!result.success) {
         logger.error(
@@ -258,7 +269,7 @@ export async function apiAction<T>(options: ApiActionOptions<T>): Promise<Action
         );
         return {
           success: false,
-          message: result.message || "La operación no se pudo completar.",
+          message: result.message || defaultErrorMessage || "La operación no se pudo completar.",
           error: result.error,
         };
       }
@@ -284,7 +295,9 @@ export async function apiAction<T>(options: ApiActionOptions<T>): Promise<Action
 
     return {
       success: false,
-      message: "Ocurrió un error inesperado al procesar la solicitud. Por favor, intenta de nuevo.",
+      message:
+        defaultErrorMessage ||
+        "Ocurrió un error inesperado al procesar la solicitud. Por favor, intenta de nuevo.",
       error: error instanceof Error ? error.message : String(error),
     };
   }

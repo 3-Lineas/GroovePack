@@ -1,13 +1,18 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: ["src/index.ts"],
+  entry: {
+    "logger/index": "src/logger/index.ts",
+    "pipeline/pipeline": "src/pipeline/pipeline.ts",
+    "pipeline/with-d1-transaction": "src/pipeline/with-d1-transaction.ts",
+    "api-client/index": "src/api-client/index.ts",
+    "api-action/index": "src/api-action/index.ts",
+    "api-toast/index": "src/api-toast/index.ts",
+  },
   format: ["esm"],
-  dts: false,
+  dts: true,
   clean: true,
   minify: false,
   sourcemap: true,
-  banner: {
-    js: "#!/usr/bin/env node",
-  },
+  external: ["hono", "hono/client", "sonner"],
 });

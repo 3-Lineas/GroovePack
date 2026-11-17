@@ -5,6 +5,8 @@
  */
 import type { D1TransactionContext, BatchCapableDb } from "./types";
 
+export type { D1TransactionContext, BatchCapableDb } from "./types";
+
 /**
  * Transactional wrapper that emulates Laravel's `DB::transaction()` pattern on Cloudflare D1.
  *
