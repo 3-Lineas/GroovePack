@@ -25,7 +25,7 @@ Enterprise-grade patterns for deterministic error handling, typed domain excepti
 
 4. **Universal Error Normalization in Catch Blocks**:
    - Every top-level catch block or global error handler must normalize unknown or unexpected runtime errors into `AppError` subclasses (e.g. `InternalServerError`).
-   - All HTTP responses are formatted via standardized response serialization (`ActionResponse<never>`).
+   - All HTTP responses are formatted via standardized response serialization (`ActionResponse<never>` from `@3lineas/groovepack/api-action`), and structured logging uses `logger` from `@3lineas/groovepack/logger`.
 
 5. **Separate User-Safe Messages from Internal Diagnostics**:
    - The user receives courteous, empathetic, and actionable feedback in the configured locale (governed by `ux-writing`).
@@ -58,7 +58,7 @@ src/
 
 ### A. Domain Custom Exception Example (`src/errors/stores/slug-conflict.error.ts`)
 ```ts
-import { AppError } from "@/errors/app-error";
+import { AppError } from "@3lineas/groovepack/errors";
 
 export class SlugConflictError extends AppError {
   constructor(
@@ -79,7 +79,7 @@ export class SlugConflictError extends AppError {
 
 ### B. Universal Catch Normalization Pattern
 ```ts
-import { AppError } from "@/errors/app-error";
+import { AppError } from "@3lineas/groovepack/errors";
 import { InternalServerError } from "@/errors/common/internal-server.error";
 
 export function normalizeError(caughtError: unknown): AppError {

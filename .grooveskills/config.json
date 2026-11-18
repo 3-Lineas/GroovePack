@@ -1,5 +1,5 @@
 {
-  "version": "1.21.1",
+  "version": "1.23.0",
   "harness": true,
   "language": "en",
   "agents": [
@@ -31,7 +31,11 @@
     "react-core",
     "react-advanced",
     "react-create-page",
-    "nextjs-architecture"
+    "nextjs-architecture",
+    "groovepack-errors",
+    "groovepack-pipeline",
+    "groovepack-api",
+    "groovepack-logger"
   ],
-  "updatedAt": "2026-11-17T16:47:08.647Z"
+  "updatedAt": "2026-11-18T12:36:32.276Z"
 }

@@ -1,5 +1,6 @@
 import type { ApiClientConfig } from "@/types/api-client/api-client-config.type";
 import type { RestApiClient } from "@/types/api-client/rest-api-client.type";
+import { dispatchRequest } from "@/api-client/dispatch-request";
 import { resolveHeaders } from "@/api-client/resolve-headers";
 import { resolveUrl } from "@/api-client/resolve-url";
 import { serializeBody } from "@/api-client/serialize-body";
@@ -8,6 +9,7 @@ import { removeStoredToken } from "@/api-client/remove-stored-token";
 
 /**
  * Creates a standardized REST API client with automatic Bearer token injection,
+ * dynamic per-request headers, Cloudflare Service Binding support,
  * `BigInt`-safe JSON serialization, and `FormData` support.
  */
 export function createApiClient(config: ApiClientConfig = {}): RestApiClient {
@@ -16,6 +18,9 @@ export function createApiClient(config: ApiClientConfig = {}): RestApiClient {
     tokenStorageKey = "token",
     getToken,
     defaultHeaders,
+    getHeaders,
+    serviceBinding,
+    fallbackBaseUrl,
     fetcher = fetch,
   } = config;
 
@@ -27,20 +32,25 @@ export function createApiClient(config: ApiClientConfig = {}): RestApiClient {
   ): Promise<Response> {
     const isFormData =
       typeof FormData !== "undefined" && body instanceof FormData;
-    const headers = await resolveHeaders(
+    const headers = await resolveHeaders({
       defaultHeaders,
+      getHeaders,
       tokenStorageKey,
       getToken,
-      init?.headers,
+      extraHeaders: init?.headers,
       isFormData,
-    );
-
-    return fetcher(resolveUrl(baseUrl, path), {
-      ...init,
-      method,
-      headers,
-      body: serializeBody(body),
     });
+
+    return dispatchRequest(
+      resolveUrl(baseUrl, path),
+      {
+        ...init,
+        method,
+        headers,
+        body: serializeBody(body),
+      },
+      { serviceBinding, fallbackBaseUrl, fetcher },
+    );
   }
 
   return {

@@ -188,20 +188,31 @@ const saleId = await withD1Transaction(env.DB, async (tx) => {
 
 Unified factory for both **REST** (`createApiClient`) and **Hono RPC** (`createHonoClient`), with automatic `Authorization: Bearer <token>` injection and `BigInt`-safe JSON serialization.
 
-### Hono RPC Client
+### Hono RPC Client (SSR / Cloudflare Service Binding + Local Fallback)
 
 ```typescript
 import { createHonoClient } from "@3lineas/groovepack/api-client";
-import type { AppType } from "api";
+import type { AppType } from "@repo/api/routes";
+import { verifySession } from "@/lib/session/verify-session";
 
-export const rpc = createHonoClient<AppType>({
-  baseUrl: import.meta.env.VITE_API_URL,
-  getToken: () => localStorage.getItem("auth_token"),
+export const apiClient = createHonoClient<AppType>({
+  baseUrl: "http://api.local/api",
+  serviceBinding: "API",
+  fallbackBaseUrl: "http://127.0.0.1:8787",
+  getHeaders: async () => {
+    const session = await verifySession();
+    return session.isAuth && session.userId
+      ? { "x-user-id": session.userId, "x-user-role": session.role ?? "user" }
+      : {};
+  },
 });
 
 // Full end-to-end type inference
-const res = await rpc.v1.products.$get();
+const res = await apiClient.v1.products.$get();
 ```
+
+- `getHeaders`: Sync or async per-request headers merged after `defaultHeaders` and before per-call `init.headers`.
+- `serviceBinding` + `fallbackBaseUrl`: Safely resolves `env[serviceBinding]?.fetch` via `cloudflare:workers` in Workers, falling back to `fetch(fallbackBaseUrl + pathname + search, init)` in local Node/Vite/Next.js development without breaking browser builds.
 
 ### REST Client & Token Helpers
 
@@ -216,7 +227,7 @@ import {
 export const api = createApiClient({
   baseUrl: "https://api.example.com/v1",
   tokenStorageKey: "auth_token",
-  headers: { "X-App-Version": "1.0.0" },
+  defaultHeaders: { "X-App-Version": "1.0.0" },
 });
 
 const response = await api.post("/orders", { total: BigInt(1500) });
@@ -226,7 +237,7 @@ const response = await api.post("/orders", { total: BigInt(1500) });
 
 ## 5. `@3lineas/groovepack/api-action`
 
-Polymorphic wrapper that normalizes Hono RPC responses, standard `fetch` responses, `ActionResponse<T>`, or raw promises. Supports three TypeScript-overloaded modes while logging **exclusively on errors**:
+Polymorphic wrapper that normalizes Hono RPC responses, standard `fetch` responses, `ActionResponse<T>`, or raw promises (`apiCall` accepts either `() => Promise<...>` or a direct `Promise<...>`). Supports three TypeScript-overloaded modes while logging **exclusively on errors**:
 
 1. **Default `ActionResponse<T>` mode** (mutations & `apiToast`):
 ```typescript

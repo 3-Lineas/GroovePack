@@ -4,6 +4,18 @@ This document provides a concise, structured changelog of recent GrooveSkills re
 
 ---
 
+## [v1.23.0]
+- **Dedicated `GroovePack` Category & 4 Modular Skills**: Added `category` to `SkillMetadata`, grouped `prompts.groupMultiselect` in the CLI wizard, and introduced 4 dedicated skills (`groovepack-errors`, `groovepack-pipeline`, `groovepack-api`, `groovepack-logger`) auto-suggested when `@3lineas/groovepack` is in `package.json`.
+- **GroovePack `v1.5.0` Support (`createAppError` & 3-Mode `apiAction`)**: Replaced manual `src/errors/app-error.ts` templates with `@3lineas/groovepack/errors` (`createAppError` / `AppError`), documented the 3 `apiAction` modes (`ActionResponse<T>`, `fallback`, `throwOnError: true`), and fixed 3-argument `logger.*` calls and invalid `RestApiClient` generics across skills.
+
+---
+
+## [v1.22.0]
+- **GroovePack `v1.3.0` Package Alignment**: Updated `nextjs-architecture`, `react-create-page`, `ux-writing`, `hono`, `controller-orchestration-queues`, `error-handling-logging`, `testing-vitest`, `typescript-clean`, and `clean-architecture-ddd` to use `@3lineas/groovepack` via `pnpm add @3lineas/groovepack` and its subpath exports (`/api-action`, `/api-client`, `/api-toast`, `/logger`, `/pipeline`, `/pipeline/with-d1-transaction`, `/vite`).
+- **Complete `sonner` Removal & Direct Primitives**: Removed `sonner` / `toast.promise` in favor of `@3lineas/groovepack/api-toast` (Shadcn `@base-ui/react/toast`), replaced manual `Logger` and `withD1Transaction` templates with direct package imports, and standardized single-runtime env vars (`NEXT_PUBLIC_GROOVEPACK_*` for Next.js/Vinext or `GROOVEPACK_*` for Vite/Node/Workers).
+
+---
+
 ## [v1.21.1]
 - **Strict Onboarding Guardrails**: Removed ambiguous roadmap/priority triggers from `onboardingPrompt` across all 5 languages (`es`, `en`, `pt`, `it`, `fr`), pointed skills references to `.grooveskills/skills/`, and added explicit no-code, no-install, and mandatory stop instructions.
 - **00-onboarding.md Future Work & Static Check Rules**: Added `User Answers & Future Work Rule` forbidding `YY-MM-DD-*.md` task creation, dependency installation, or starting migrations/plans during onboarding, and conditioned static checks on already-installed dependencies.

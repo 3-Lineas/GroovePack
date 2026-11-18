@@ -11,6 +11,7 @@ import { unwrapActionResponse } from "@/api-action/unwrap-action-response";
 export type { ActionResponse } from "@/types/common/action-response.type";
 export type { MinimalResponse } from "@/types/api-action/minimal-response.type";
 export type { ErrorLogger } from "@/types/api-action/error-logger.type";
+export type { ApiCallInput } from "@/types/api-action/api-call-input.type";
 export type { ApiCallResult } from "@/types/api-action/api-call-result.type";
 export type { ApiActionBaseOptions } from "@/types/api-action/api-action-base-options.type";
 export type { ApiActionOptions } from "@/types/api-action/api-action-options.type";

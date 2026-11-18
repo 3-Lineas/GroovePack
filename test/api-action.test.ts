@@ -494,4 +494,46 @@ describe("apiAction", () => {
       }
     });
   });
+
+  describe("direct Promise apiCall support", () => {
+    it("accepts a direct Promise in default ActionResponse mode", async () => {
+      const result = await apiAction<{ id: number }>({
+        apiCall: Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ success: true, data: { id: 7 } }),
+        }),
+      });
+
+      assert.equal(result.success, true);
+      assert.deepEqual(result.data, { id: 7 });
+    });
+
+    it("infers T and unwraps data in fallback mode with a direct Promise", async () => {
+      const users = await apiAction({
+        apiCall: Promise.resolve({
+          success: true,
+          data: [{ id: 1, name: "Grace" }] satisfies UserItem[],
+        }),
+        fallback: [],
+      });
+
+      assert.deepEqual(users, [{ id: 1, name: "Grace" }]);
+    });
+
+    it("catches a rejected direct Promise and invokes onError once", async () => {
+      let errorCalls = 0;
+      const result = await apiAction({
+        apiCall: Promise.reject(new Error("Connection reset")),
+        defaultErrorMessage: "Request failed",
+        onError: () => {
+          errorCalls += 1;
+        },
+      });
+
+      assert.equal(result.success, false);
+      assert.equal(result.error, "Request failed");
+      assert.equal(errorCalls, 1);
+    });
+  });
 });
