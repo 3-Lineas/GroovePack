@@ -6,7 +6,6 @@ import {
   normalizeSupportedLocale,
   readEnvLocale,
   resolveLocaleMessages,
-  setGroovepackLocale,
 } from "../src/i18n/index.js";
 
 const ENV_KEYS = [
@@ -16,7 +15,6 @@ const ENV_KEYS = [
 
 describe("i18n", () => {
   afterEach(() => {
-    setGroovepackLocale(undefined);
     for (const key of ENV_KEYS) {
       delete process.env[key];
     }
@@ -40,19 +38,11 @@ describe("i18n", () => {
     process.env.NEXT_PUBLIC_GROOVEPACK_LOCALE = "pt-BR";
     assert.equal(readEnvLocale(), "pt");
     assert.equal(getGroovepackLocale(), "pt");
+    assert.deepEqual(resolveLocaleMessages(), GROOVEPACK_MESSAGES.pt);
 
     process.env.GROOVEPACK_LOCALE = "es";
     assert.equal(readEnvLocale(), "es");
     assert.equal(getGroovepackLocale(), "es");
-  });
-
-  it("respects precedence: per-call > setGroovepackLocale > env > 'en'", () => {
-    process.env.GROOVEPACK_LOCALE = "es";
-    assert.equal(getGroovepackLocale(), "es");
-
-    setGroovepackLocale("fr");
-    assert.equal(getGroovepackLocale(), "fr");
-    assert.equal(getGroovepackLocale("it"), "it");
-    assert.deepEqual(resolveLocaleMessages("it"), GROOVEPACK_MESSAGES.it);
+    assert.deepEqual(resolveLocaleMessages(), GROOVEPACK_MESSAGES.es);
   });
 });

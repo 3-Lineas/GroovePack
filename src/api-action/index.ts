@@ -18,11 +18,10 @@ export type { ApiActionOptions } from "@/types/api-action/api-action-options.typ
  */
 export async function apiAction<T = unknown>({
   apiCall,
-  locale,
   defaultErrorMessage,
   onError = defaultErrorLogger,
 }: ApiActionOptions<T>): Promise<ActionResponse<T>> {
-  const messages = resolveLocaleMessages(locale);
+  const messages = resolveLocaleMessages();
   const resolvedDefaultError = defaultErrorMessage ?? messages.unexpectedError;
 
   try {

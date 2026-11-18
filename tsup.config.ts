@@ -9,6 +9,7 @@ export default defineConfig({
     "api-action/index": "src/api-action/index.ts",
     "api-toast/index": "src/api-toast/index.ts",
     "i18n/index": "src/i18n/index.ts",
+    "vite/index": "src/vite/index.ts",
   },
   format: ["esm"],
   dts: true,

@@ -48,6 +48,7 @@ Install only what your app actually uses:
 | `/api-action` | *None (0 deps)* | React, Astro, Next.js, Node |
 | `/api-client` | `hono >= 4.0.0` *(only if using `createHonoClient`)* | Frontend / Edge |
 | `/api-toast` | `@base-ui/react >= 1.0.0` (Shadcn v4 `toast`) | React / Browser |
+| `/vite` | *None (0 deps)* | Vite `vite.config.ts` |
 
 ---
 
@@ -250,24 +251,32 @@ export async function createProductAction(
 
 ## 6. `@3lineas/groovepack/api-toast`
 
-Orchestrates async actions with **Shadcn v4 (`@base-ui/react/toast`)** loading, success, and error toasts, returning the resolved `ActionResponse<T>`. Throws an explicit error if Shadcn Toast (`@base-ui/react/toast`) is not installed or configured.
+Orchestrates async actions with **Shadcn Toast** loading, success, and error toasts, returning the resolved `ActionResponse<T>`. Automatically resolves `toastManager` from `/src/components/ui/toast` (or `GROOVEPACK_SHADCN_PATH` / `NEXT_PUBLIC_GROOVEPACK_SHADCN_PATH`), and reads the active language strictly from `GROOVEPACK_LOCALE` / `NEXT_PUBLIC_GROOVEPACK_LOCALE` (defaulting to `"en"`).
 
 ```typescript
-import { apiToast, createApiToast } from "@3lineas/groovepack/api-toast";
-import { toastManager } from "@/components/ui/toast";
+import { apiToast } from "@3lineas/groovepack/api-toast";
 
-// Using the shared toast manager from Shadcn v4 (@/components/ui/toast)
-export const appToast = createApiToast({
-  toast: toastManager,
-  locale: "es",
+await apiToast({
+  action: () => loginAction(values),
+  onSuccess: () => {
+    router.push("/dashboard");
+    router.refresh();
+  },
 });
+```
 
-const res = await appToast({
-  action: () => createProductAction(values),
-  loadingMessage: "Guardando producto...",
-  successMessage: "Producto creado correctamente",
-  onSuccess: () => navigate("/products"),
+### Vite Plugin (`@3lineas/groovepack/vite`)
+
+For Vite apps, register `groovepack()` in `vite.config.ts` so `${shadcnPath}/toast` is statically resolved in both `vite dev` and `vite build`:
+
+```typescript
+import { defineConfig } from "vite";
+import { groovepack } from "@3lineas/groovepack/vite";
+
+export default defineConfig({
+  plugins: [groovepack()],
 });
+```
 
 // Or passing the toast manager directly per call
 await apiToast({

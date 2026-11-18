@@ -1,9 +1,14 @@
 import type { BaseUiToastManager } from "@/types/api-toast/base-ui-toast-manager.type";
+import { readShadcnUiPath } from "@/api-toast/read-shadcn-ui-path";
 
-const MISSING_SHADCN_TOAST_MESSAGE =
-  '[@3lineas/groovepack/api-toast] Shadcn Toast (@base-ui/react/toast) is not installed or configured. Run "pnpm dlx shadcn@latest add toast" and ensure "@base-ui/react" is installed.';
+const toastManagerCache = new Map<string, BaseUiToastManager>();
 
-let defaultToastManager: BaseUiToastManager | undefined;
+function buildMissingShadcnToastMessage(toastModulePath: string): string {
+  return (
+    `[@3lineas/groovepack/api-toast] Could not load a valid Shadcn toastManager from "${toastModulePath}". ` +
+    'Run "pnpm dlx shadcn@latest add toast" or set GROOVEPACK_SHADCN_PATH / NEXT_PUBLIC_GROOVEPACK_SHADCN_PATH to your Shadcn UI directory.'
+  );
+}
 
 function isValidToastManager(
   candidate: unknown,
@@ -19,48 +24,47 @@ function isValidToastManager(
   );
 }
 
+function extractToastManager(loadedModule: unknown): BaseUiToastManager | undefined {
+  if (typeof loadedModule !== "object" || loadedModule === null) {
+    return undefined;
+  }
+
+  const record = loadedModule as Record<string, unknown>;
+  const candidate = record["toastManager"] ?? record["toast"] ?? record["default"];
+
+  return isValidToastManager(candidate) ? candidate : undefined;
+}
+
 /**
- * Resolves the active `@base-ui/react/toast` manager or throws a descriptive
- * error when Shadcn Toast (`@base-ui/react/toast`) is not installed.
+ * Automatically resolves the Shadcn `toastManager` from `${shadcnPath}/toast`
+ * (default `"/src/components/ui/toast"`) or throws a descriptive error.
  */
-export async function resolveToastManager(
-  customToast?: BaseUiToastManager,
-): Promise<BaseUiToastManager> {
-  if (customToast !== undefined) {
-    if (!isValidToastManager(customToast)) {
-      console.error(MISSING_SHADCN_TOAST_MESSAGE);
-      throw new Error(MISSING_SHADCN_TOAST_MESSAGE);
-    }
-
-    return customToast;
+export async function resolveToastManager(): Promise<BaseUiToastManager> {
+  const toastModulePath = `${readShadcnUiPath()}/toast`;
+  const cached = toastManagerCache.get(toastModulePath);
+  if (cached) {
+    return cached;
   }
 
-  if (defaultToastManager) {
-    return defaultToastManager;
-  }
+  const missingMessage = buildMissingShadcnToastMessage(toastModulePath);
 
   try {
-    const baseUiToastModule = (await import("@base-ui/react/toast")) as {
-      Toast?: { createToastManager?: () => BaseUiToastManager };
-      createToastManager?: () => BaseUiToastManager;
-    };
-    const factory =
-      baseUiToastModule.Toast?.createToastManager ??
-      baseUiToastModule.createToastManager;
+    const loadedModule: unknown = await import(/* @vite-ignore */ toastModulePath);
+    const manager = extractToastManager(loadedModule);
 
-    if (typeof factory !== "function") {
-      throw new Error(MISSING_SHADCN_TOAST_MESSAGE);
+    if (!manager) {
+      console.error(missingMessage);
+      throw new Error(missingMessage);
     }
 
-    const created = factory();
-    if (!isValidToastManager(created)) {
-      throw new Error(MISSING_SHADCN_TOAST_MESSAGE);
+    toastManagerCache.set(toastModulePath, manager);
+    return manager;
+  } catch (caughtError) {
+    if (caughtError instanceof Error && caughtError.message === missingMessage) {
+      throw caughtError;
     }
 
-    defaultToastManager = created;
-    return defaultToastManager;
-  } catch {
-    console.error(MISSING_SHADCN_TOAST_MESSAGE);
-    throw new Error(MISSING_SHADCN_TOAST_MESSAGE);
+    console.error(missingMessage);
+    throw new Error(missingMessage);
   }
 }

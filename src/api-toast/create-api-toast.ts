@@ -5,21 +5,19 @@ import { resolveToastManager } from "@/api-toast/resolve-toast-manager";
 import { resolveLocaleMessages } from "@/i18n/resolve-locale-messages";
 
 /**
- * Factory creating a pre-configured `apiToast` helper backed by Shadcn v4 (`@base-ui/react/toast`).
+ * Factory creating a pre-configured `apiToast` helper backed by Shadcn Toast.
  */
 export function createApiToast(defaults: ApiToastDefaults = {}) {
   return async function configuredApiToast<T = unknown>({
     action,
-    toast = defaults.toast,
-    locale = defaults.locale,
     loadingMessage,
     successMessage,
     errorMessage,
     onSuccess,
     onError,
   }: ApiToastOptions<T>): Promise<ActionResponse<T>> {
-    const toastManager = await resolveToastManager(toast);
-    const messages = resolveLocaleMessages(locale);
+    const toastManager = await resolveToastManager();
+    const messages = resolveLocaleMessages();
     const resolvedLoading =
       loadingMessage ?? defaults.defaultLoadingMessage ?? messages.loading;
     const resolvedSuccess =

@@ -1,12 +1,12 @@
 import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { apiAction } from "../src/api-action/index.js";
-import { GROOVEPACK_MESSAGES, setGroovepackLocale } from "../src/i18n/index.js";
+import { GROOVEPACK_MESSAGES } from "../src/i18n/index.js";
 
 describe("apiAction", () => {
   afterEach(() => {
-    setGroovepackLocale(undefined);
     delete process.env.GROOVEPACK_LOCALE;
+    delete process.env.NEXT_PUBLIC_GROOVEPACK_LOCALE;
   });
 
   it("handles 2xx MinimalResponse with ActionResponse payload", async () => {
@@ -50,9 +50,9 @@ describe("apiAction", () => {
     assert.equal(result.error, GROOVEPACK_MESSAGES.en.unexpectedError);
   });
 
-  it("uses translated fallback when locale or GROOVEPACK_LOCALE is set", async () => {
+  it("uses translated fallback when GROOVEPACK_LOCALE is set", async () => {
+    process.env.GROOVEPACK_LOCALE = "es";
     const spanishResult = await apiAction({
-      locale: "es",
       apiCall: async () => ({
         ok: false,
         status: 500,
@@ -72,8 +72,8 @@ describe("apiAction", () => {
   });
 
   it("uses custom defaultErrorMessage over locale fallback", async () => {
+    process.env.GROOVEPACK_LOCALE = "es";
     const result = await apiAction({
-      locale: "es",
       defaultErrorMessage: "Custom error",
       apiCall: async () => ({
         ok: false,

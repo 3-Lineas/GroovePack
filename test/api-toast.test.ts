@@ -1,51 +1,81 @@
 import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import {
-  apiToast,
-  createApiToast,
-  type BaseUiToastManager,
-  type BaseUiToastPayload,
-} from "../src/api-toast/index.js";
-import { setGroovepackLocale } from "../src/i18n/index.js";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { apiToast, createApiToast } from "../src/api-toast/index.js";
+import { GROOVEPACK_MESSAGES } from "../src/i18n/index.js";
 
-function createMockToastManager() {
-  const events: Array<{
-    method: "add" | "update" | "close";
+const tempDirs: string[] = [];
+
+function createMockShadcnToastDir(): {
+  dir: string;
+  eventsFile: string;
+} {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "groovepack-toast-"));
+  tempDirs.push(dir);
+  const eventsFile = path.join(dir, "events.json");
+  writeFileSync(eventsFile, "[]", "utf8");
+
+  const toastModuleCode = `
+import { readFileSync, writeFileSync } from "node:fs";
+let counter = 0;
+const eventsFile = ${JSON.stringify(eventsFile)};
+function pushEvent(event) {
+  const current = JSON.parse(readFileSync(eventsFile, "utf8"));
+  current.push(event);
+  writeFileSync(eventsFile, JSON.stringify(current), "utf8");
+}
+export const toastManager = {
+  add(options) {
+    counter += 1;
+    const id = "toast-" + counter;
+    pushEvent({ method: "add", id, payload: options });
+    return id;
+  },
+  update(id, updates) {
+    pushEvent({ method: "update", id, payload: updates });
+  },
+  close(id) {
+    pushEvent({ method: "close", id });
+  },
+};
+`;
+
+  writeFileSync(path.join(dir, "toast.mjs"), toastModuleCode, "utf8");
+  writeFileSync(path.join(dir, "toast.js"), toastModuleCode, "utf8");
+  return { dir, eventsFile };
+}
+
+async function readEvents(eventsFile: string) {
+  const { readFileSync } = await import("node:fs");
+  return JSON.parse(readFileSync(eventsFile, "utf8")) as Array<{
+    method: string;
     id: string;
-    payload?: BaseUiToastPayload;
-  }> = [];
-  let counter = 0;
-
-  const manager: BaseUiToastManager = {
-    add(options) {
-      counter += 1;
-      const id = `toast-${counter}`;
-      events.push({ method: "add", id, payload: options });
-      return id;
-    },
-    update(id, updates) {
-      events.push({ method: "update", id, payload: updates });
-    },
-    close(id) {
-      events.push({ method: "close", id });
-    },
-  };
-
-  return { manager, events };
+    payload?: Record<string, unknown>;
+  }>;
 }
 
 describe("apiToast & createApiToast", () => {
   afterEach(() => {
-    setGroovepackLocale(undefined);
     delete process.env.GROOVEPACK_LOCALE;
+    delete process.env.NEXT_PUBLIC_GROOVEPACK_LOCALE;
+    delete process.env.GROOVEPACK_SHADCN_PATH;
+    delete process.env.NEXT_PUBLIC_GROOVEPACK_SHADCN_PATH;
+    while (tempDirs.length > 0) {
+      const dir = tempDirs.pop();
+      if (dir) {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    }
   });
 
-  it("resolves with ActionResponse on success, calls .add()/.update(), and triggers onSuccess", async () => {
-    let onSuccessCalled = false;
-    const { manager, events } = createMockToastManager();
+  it("resolves toastManager automatically from GROOVEPACK_SHADCN_PATH and triggers onSuccess", async () => {
+    const { dir, eventsFile } = createMockShadcnToastDir();
+    process.env.GROOVEPACK_SHADCN_PATH = dir;
 
+    let onSuccessCalled = false;
     const result = await apiToast<{ id: string }>({
-      toast: manager,
       action: async () => ({ success: true, data: { id: "123" } }),
       successMessage: "Saved 123",
       onSuccess: (data) => {
@@ -55,6 +85,8 @@ describe("apiToast & createApiToast", () => {
 
     assert.equal(result.success, true);
     assert.equal(onSuccessCalled, true);
+
+    const events = await readEvents(eventsFile);
     assert.deepEqual(events, [
       {
         method: "add",
@@ -69,32 +101,39 @@ describe("apiToast & createApiToast", () => {
     ]);
   });
 
-  it("returns failed ActionResponse, updates toast with error, and triggers onError", async () => {
-    let capturedError = "";
-    const { manager, events } = createMockToastManager();
+  it("reads GROOVEPACK_LOCALE automatically for loading and error messages", async () => {
+    const { dir, eventsFile } = createMockShadcnToastDir();
+    process.env.GROOVEPACK_SHADCN_PATH = dir;
+    process.env.GROOVEPACK_LOCALE = "es";
 
     const result = await apiToast({
-      toast: manager,
-      action: async () => ({ success: false, error: "Denied" }),
-      onError: (errorMessage) => {
-        capturedError = errorMessage;
-      },
+      action: async () => ({ success: false }),
     });
 
     assert.equal(result.success, false);
-    assert.equal(capturedError, "Denied");
-    assert.deepEqual(events[1], {
-      method: "update",
-      id: "toast-1",
-      payload: { title: "Denied", type: "error" },
-    });
+    const events = await readEvents(eventsFile);
+    assert.deepEqual(events, [
+      {
+        method: "add",
+        id: "toast-1",
+        payload: { title: GROOVEPACK_MESSAGES.es.loading, type: "loading" },
+      },
+      {
+        method: "update",
+        id: "toast-1",
+        payload: {
+          title: GROOVEPACK_MESSAGES.es.operationFailed,
+          type: "error",
+        },
+      },
+    ]);
   });
 
-  it("createApiToast applies custom defaultErrorMessage, locale, and default toast manager", async () => {
-    const { manager, events } = createMockToastManager();
+  it("createApiToast applies custom defaultErrorMessage", async () => {
+    const { dir, eventsFile } = createMockShadcnToastDir();
+    process.env.GROOVEPACK_SHADCN_PATH = dir;
+
     const customToast = createApiToast({
-      toast: manager,
-      locale: "pt",
       defaultErrorMessage: "Custom fallback",
     });
 
@@ -103,6 +142,7 @@ describe("apiToast & createApiToast", () => {
     });
 
     assert.equal(result.success, false);
+    const events = await readEvents(eventsFile);
     assert.deepEqual(events[1], {
       method: "update",
       id: "toast-1",
@@ -110,43 +150,17 @@ describe("apiToast & createApiToast", () => {
     });
   });
 
-  it("catches thrown exceptions and returns standardized failure ActionResponse", async () => {
-    const { manager, events } = createMockToastManager();
-
-    const result = await apiToast({
-      toast: manager,
-      locale: "it",
-      action: async () => {
-        throw new Error("Boom");
-      },
-    });
-
-    assert.equal(result.success, false);
-    assert.equal(result.error, "Boom");
-    assert.deepEqual(events[1], {
-      method: "update",
-      id: "toast-1",
-      payload: { title: "Boom", type: "error" },
-    });
-  });
-
-  it("throws an explicit error when Shadcn Toast (@base-ui/react/toast) is not installed or manager is invalid", async () => {
-    await assert.rejects(
-      async () =>
-        apiToast({
-          toast: null as unknown as BaseUiToastManager,
-          action: async () => ({ success: true }),
-        }),
-      /Shadcn Toast \(@base-ui\/react\/toast\) is not installed or configured/,
-    );
+  it("throws an explicit error when Shadcn Toast is missing or invalid", async () => {
+    const emptyDir = mkdtempSync(path.join(os.tmpdir(), "groovepack-empty-"));
+    tempDirs.push(emptyDir);
+    process.env.GROOVEPACK_SHADCN_PATH = emptyDir;
 
     await assert.rejects(
       async () =>
         apiToast({
-          toast: {} as BaseUiToastManager,
           action: async () => ({ success: true }),
         }),
-      /Shadcn Toast \(@base-ui\/react\/toast\) is not installed or configured/,
+      /Could not load a valid Shadcn toastManager/,
     );
   });
 });

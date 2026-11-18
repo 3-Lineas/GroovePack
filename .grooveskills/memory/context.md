@@ -18,8 +18,9 @@ All modules are exposed via `package.json` Subpath Exports (`sideEffects: false`
 - `./pipeline/with-d1-transaction` (`src/pipeline/with-d1-transaction.ts`) — Cloudflare D1 batch transaction helper
 - `./api-client` (`src/api-client/index.ts`) — REST & Hono RPC client factory
 - `./api-action` (`src/api-action/index.ts`) — Standardized `ActionResponse<T>` HTTP wrapper
-- `./api-toast` (`src/api-toast/index.ts`) — Shadcn v4 (`@base-ui/react/toast`) toast wrapper for `ActionResponse<T>`
-- `./i18n` (`src/i18n/index.ts`) — 5-language (`en`, `es`, `pt`, `it`, `fr`) fallback message dictionary
+- `./api-toast` (`src/api-toast/index.ts`) — Shadcn Toast wrapper for `ActionResponse<T>` (auto-resolves `${shadcnPath}/toast`)
+- `./i18n` (`src/i18n/index.ts`) — 5-language (`en`, `es`, `pt`, `it`, `fr`) fallback message dictionary (100% env-driven via `GROOVEPACK_LOCALE` / `NEXT_PUBLIC_GROOVEPACK_LOCALE`)
+- `./vite` (`src/vite/index.ts`) — Optional Vite plugin (`groovepack()`) to statically resolve `${shadcnPath}/toast`
 
 ### Conventions
 - **Atomic Modules**: <200 lines per file, 1 function/type per file.
