@@ -223,28 +223,38 @@ const response = await api.post("/orders", { total: BigInt(1500) });
 
 ## 5. `@3lineas/groovepack/api-action`
 
-Polymorphic wrapper that normalizes Hono RPC responses, standard `fetch` responses, `ActionResponse<T>`, or raw promises into a predictable `ActionResponse<T>` contract. Logs **exclusively on errors**.
+Polymorphic wrapper that normalizes Hono RPC responses, standard `fetch` responses, `ActionResponse<T>`, or raw promises. Supports three TypeScript-overloaded modes while logging **exclusively on errors**:
 
+1. **Default `ActionResponse<T>` mode** (mutations & `apiToast`):
 ```typescript
 import { apiAction, type ActionResponse } from "@3lineas/groovepack/api-action";
-import { Logger } from "@3lineas/groovepack/logger";
 import { rpc } from "@/lib/rpc";
-
-const logger = new Logger("Web:Products");
 
 export async function createProductAction(
   input: { name: string; price: number },
 ): Promise<ActionResponse<Product>> {
   return apiAction<Product>({
-    actionName: "createProduct",
-    logger,
     defaultErrorMessage: "Could not create product. Please try again.",
     apiCall: () => rpc.v1.products.$post({ json: input }),
-    onSuccess: (product) => {
-      console.log("Created:", product.id);
-    },
   });
 }
+```
+
+2. **`fallback` mode** (Server Components / `page.tsx` returning `Promise<T>`):
+```typescript
+const products = await apiAction<Product[]>({
+  apiCall: () => rpc.v1.products.$get(),
+  fallback: [],
+});
+```
+
+3. **`throwOnError: true` mode** (Error Boundaries / `error.tsx` returning `Promise<T>` or throwing `Error`):
+```typescript
+const product = await apiAction<Product>({
+  apiCall: () => rpc.v1.products[":id"].$get({ param: { id } }),
+  throwOnError: true,
+  defaultErrorMessage: "Product could not be loaded.",
+});
 ```
 
 ---

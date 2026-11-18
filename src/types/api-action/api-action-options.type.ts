@@ -1,14 +1,11 @@
-import type { ApiCallResult } from "@/types/api-action/api-call-result.type";
-import type { ErrorLogger } from "@/types/api-action/error-logger.type";
+import type { ApiActionBaseOptions } from "@/types/api-action/api-action-base-options.type";
 
 /**
- * Options for `apiAction`.
+ * Default options for `apiAction`, returning a standardized `ActionResponse<T>`.
  */
-export interface ApiActionOptions<T = unknown> {
-  /** Async call returning either a `Response`/`ClientResponse` or an `ActionResponse<T>`. */
-  apiCall: () => Promise<ApiCallResult<T>>;
-  /** Default fallback error message when the server does not provide one. */
-  defaultErrorMessage?: string;
-  /** Optional logger for unexpected exceptions or malformed payloads. */
-  onError?: ErrorLogger;
+export interface ApiActionOptions<T = unknown> extends ApiActionBaseOptions<T> {
+  /** Disallowed in default `ActionResponse` mode. */
+  fallback?: never;
+  /** Disallowed in default `ActionResponse` mode. */
+  throwOnError?: never;
 }

@@ -1,6 +1,6 @@
 {
   "name": "@3lineas/groovepack",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Zero-dependency & modular infrastructure primitives for TypeScript, Cloudflare Workers (D1, Hono), React, and Astro.",
   "type": "module",
   "sideEffects": false,
