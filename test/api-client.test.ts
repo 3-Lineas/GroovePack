@@ -52,4 +52,31 @@ describe("createApiClient", () => {
     const data = await res.json();
     assert.deepEqual(data, { pong: true, auth: "Bearer rpc-token" });
   });
+
+  it("createHonoClient accepts Hono routers with custom Bindings and Variables without TS2344", async () => {
+    const app = new Hono<{
+      Bindings: { DB: string };
+      Variables: { userId: string };
+    }>()
+      .use("*", async (c, next) => {
+        c.set("userId", "user-42");
+        await next();
+      })
+      .get("/me", (c) => {
+        return c.json({ userId: c.get("userId") });
+      });
+
+    type AppType = typeof app;
+
+    const client = createHonoClient<AppType>({
+      baseUrl: "https://rpc.example.com",
+      fetcher: async (input: RequestInfo | URL, init?: RequestInit) =>
+        app.request(input, init, { DB: "mock-d1" }),
+    });
+
+    const res = await client.me.$get();
+    assert.equal(res.status, 200);
+    const data = await res.json();
+    assert.deepEqual(data, { userId: "user-42" });
+  });
 });

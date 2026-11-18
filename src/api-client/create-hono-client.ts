@@ -1,5 +1,5 @@
-import type { Env, Hono, Schema } from "hono";
 import { hc } from "hono/client";
+import type { AnyHonoApp } from "@/types/api-client/any-hono-app.type";
 import type { ApiClientConfig } from "@/types/api-client/api-client-config.type";
 import { resolveHeaders } from "@/api-client/resolve-headers";
 
@@ -7,9 +7,9 @@ import { resolveHeaders } from "@/api-client/resolve-headers";
  * Creates a typed Hono RPC client (`hc<TApp>()`) with automatic Bearer token injection.
  * Requires `hono` to be installed in the consumer project.
  */
-export function createHonoClient<
-  TApp extends Hono<Env, Schema, string>,
->(config: ApiClientConfig = {}) {
+export function createHonoClient<TApp extends AnyHonoApp>(
+  config: ApiClientConfig = {},
+) {
   const {
     baseUrl = "",
     tokenStorageKey = "token",

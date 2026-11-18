@@ -1,6 +1,6 @@
 {
   "name": "@3lineas/groovepack",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Zero-dependency & modular infrastructure primitives for TypeScript, Cloudflare Workers (D1, Hono), React, and Astro.",
   "type": "module",
   "sideEffects": false,
@@ -56,21 +56,20 @@
     "test": "tsx --test test/*.test.ts"
   },
   "peerDependencies": {
-    "hono": ">=4.0.0",
-    "sonner": ">=1.0.0"
+    "@base-ui/react": ">=1.0.0",
+    "hono": ">=4.0.0"
   },
   "peerDependenciesMeta": {
-    "hono": {
+    "@base-ui/react": {
       "optional": true
     },
-    "sonner": {
+    "hono": {
       "optional": true
     }
   },
   "devDependencies": {
     "@types/node": "^22.10.1",
     "hono": "^4.7.0",
-    "sonner": "^2.0.0",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
@@ -83,7 +82,8 @@
     "logger",
     "api-client",
     "api-action",
-    "sonner"
+    "base-ui",
+    "shadcn"
   ],
   "author": "3lineas",
   "license": "MIT"

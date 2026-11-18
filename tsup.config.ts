@@ -15,5 +15,5 @@ export default defineConfig({
   clean: true,
   minify: false,
   sourcemap: true,
-  external: ["hono", "hono/client", "sonner"],
+  external: ["hono", "hono/client", "@base-ui/react", "@base-ui/react/toast"],
 });

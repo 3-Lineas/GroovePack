@@ -1,6 +1,7 @@
 /**
- * Safely checks whether the current runtime is in development or test mode
- * without assuming `@types/node` or Vite ambient types.
+ * Safely checks whether the current Vinext / Cloudflare Workers runtime is in
+ * development or test mode using static `import.meta.env.DEV` access compatible
+ * with Vite 8's `ModuleRunner`.
  */
 export function checkIsDevelopment(): boolean {
   const globalRecord = globalThis as Record<string, unknown>;
@@ -18,13 +19,9 @@ export function checkIsDevelopment(): boolean {
     }
   }
 
-  const metaValue = import.meta as unknown as Record<string, unknown> | undefined;
-  if (typeof metaValue === "object" && metaValue !== null) {
-    const envValue = metaValue["env"];
-    if (typeof envValue === "object" && envValue !== null) {
-      return (envValue as Record<string, unknown>)["DEV"] === true;
-    }
+  try {
+    return Boolean(import.meta.env?.DEV);
+  } catch {
+    return false;
   }
-
-  return false;
 }

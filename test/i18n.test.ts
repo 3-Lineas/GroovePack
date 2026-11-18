@@ -12,8 +12,6 @@ import {
 const ENV_KEYS = [
   "GROOVEPACK_LOCALE",
   "NEXT_PUBLIC_GROOVEPACK_LOCALE",
-  "VITE_GROOVEPACK_LOCALE",
-  "PUBLIC_GROOVEPACK_LOCALE",
 ] as const;
 
 describe("i18n", () => {
@@ -38,8 +36,8 @@ describe("i18n", () => {
     assert.equal(normalizeSupportedLocale(123), undefined);
   });
 
-  it("reads GROOVEPACK_LOCALE and framework-prefixed env vars", () => {
-    process.env.VITE_GROOVEPACK_LOCALE = "pt-BR";
+  it("reads GROOVEPACK_LOCALE and NEXT_PUBLIC_GROOVEPACK_LOCALE env vars", () => {
+    process.env.NEXT_PUBLIC_GROOVEPACK_LOCALE = "pt-BR";
     assert.equal(readEnvLocale(), "pt");
     assert.equal(getGroovepackLocale(), "pt");
 

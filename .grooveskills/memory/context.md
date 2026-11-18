@@ -8,7 +8,7 @@ This file provides AI agents with instant architectural orientation for this pro
 ## 2. Stack & Dependencies
 - **Package Manager**: `pnpm`
 - **Build & Transpilation**: `tsup` (ESM + `.d.ts` bundles), `tsx` (`node:test` runner), `typescript` (ES2022 / ESNext modules, strict mode)
-- **Optional Peer Dependencies**: `hono`, `sonner` (marked optional via `peerDependenciesMeta`)
+- **Optional Peer Dependencies**: `hono`, `@base-ui/react` (marked optional via `peerDependenciesMeta`)
 - **Target Runtimes**: Node.js, Cloudflare Workers (`workerd`), Browsers (Vite / React), Next.js, Astro
 
 ## 3. Subpath Exports & Directory Structure
@@ -18,7 +18,7 @@ All modules are exposed via `package.json` Subpath Exports (`sideEffects: false`
 - `./pipeline/with-d1-transaction` (`src/pipeline/with-d1-transaction.ts`) — Cloudflare D1 batch transaction helper
 - `./api-client` (`src/api-client/index.ts`) — REST & Hono RPC client factory
 - `./api-action` (`src/api-action/index.ts`) — Standardized `ActionResponse<T>` HTTP wrapper
-- `./api-toast` (`src/api-toast/index.ts`) — `sonner` toast wrapper for `ActionResponse<T>`
+- `./api-toast` (`src/api-toast/index.ts`) — Shadcn v4 (`@base-ui/react/toast`) toast wrapper for `ActionResponse<T>`
 - `./i18n` (`src/i18n/index.ts`) — 5-language (`en`, `es`, `pt`, `it`, `fr`) fallback message dictionary
 
 ### Conventions

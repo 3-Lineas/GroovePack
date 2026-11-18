@@ -2,7 +2,7 @@
 
 Zero-dependency & modular infrastructure primitives for **TypeScript**, **Cloudflare Workers (D1, Hono)**, **React**, and **Astro**.
 
-`@3lineas/groovepack` provides standardized, production-tested building blocks for backend pipelines, atomic Cloudflare D1 transactions, structured logging, typed Hono RPC / REST clients, standardized `ActionResponse<T>` wrappers, and Sonner toast orchestration — exposed via **Subpath Exports** with `sideEffects: false` and **optional peer dependencies**.
+`@3lineas/groovepack` provides standardized, production-tested building blocks for backend pipelines, atomic Cloudflare D1 transactions, structured logging, typed Hono RPC / REST clients, standardized `ActionResponse<T>` wrappers, and Shadcn v4 (`@base-ui/react/toast`) toast orchestration — exposed via **Subpath Exports** with `sideEffects: false` and **optional peer dependencies**.
 
 ---
 
@@ -24,7 +24,7 @@ Zero-dependency & modular infrastructure primitives for **TypeScript**, **Cloudf
 
 ## Why Subpath Exports?
 
-- **Zero Dead Weight**: Backend workers importing `/logger` and `/pipeline` never bundle `sonner` or frontend code. Frontend apps importing `/api-toast` never bundle server utilities.
+- **Zero Dead Weight**: Backend workers importing `/logger` and `/pipeline` never bundle `@base-ui/react` or frontend code. Frontend apps importing `/api-toast` never bundle server utilities.
 - **No Barrel Files**: Every module has its own dedicated entry point for optimal tree-shaking.
 - **Immutable Infrastructure**: Lives in `node_modules` with SemVer guarantees, preventing accidental local drift across monorepo apps.
 
@@ -47,7 +47,7 @@ Install only what your app actually uses:
 | `/pipeline/with-d1-transaction` | *None (0 deps)* | Cloudflare Workers (D1 / Drizzle) |
 | `/api-action` | *None (0 deps)* | React, Astro, Next.js, Node |
 | `/api-client` | `hono >= 4.0.0` *(only if using `createHonoClient`)* | Frontend / Edge |
-| `/api-toast` | `sonner >= 1.0.0` | React / Browser |
+| `/api-toast` | `@base-ui/react >= 1.0.0` (Shadcn v4 `toast`) | React / Browser |
 
 ---
 
@@ -58,7 +58,7 @@ Install only what your app actually uses:
 3. `@3lineas/groovepack/pipeline/with-d1-transaction` — Standalone `withD1Transaction` wrapper.
 4. `@3lineas/groovepack/api-client` — `createApiClient` (REST) & `createHonoClient` (Hono RPC).
 5. `@3lineas/groovepack/api-action` — Polymorphic `apiAction` wrapper returning `ActionResponse<T>`.
-6. `@3lineas/groovepack/api-toast` — `apiToast`, `toasted`, and `createApiToast` for Sonner.
+6. `@3lineas/groovepack/api-toast` — `apiToast` and `createApiToast` for Shadcn v4 (`@base-ui/react/toast`).
 
 ---
 
@@ -250,30 +250,30 @@ export async function createProductAction(
 
 ## 6. `@3lineas/groovepack/api-toast`
 
-Orchestrates async actions with **Sonner** loading, success, and error toasts, returning the resolved `ActionResponse<T>`.
+Orchestrates async actions with **Shadcn v4 (`@base-ui/react/toast`)** loading, success, and error toasts, returning the resolved `ActionResponse<T>`. Throws an explicit error if Shadcn Toast (`@base-ui/react/toast`) is not installed or configured.
 
 ```typescript
-import { apiToast, toasted, createApiToast } from "@3lineas/groovepack/api-toast";
+import { apiToast, createApiToast } from "@3lineas/groovepack/api-toast";
+import { toastManager } from "@/components/ui/toast";
 
-// Standard usage (Spanish defaults)
-const res = await apiToast({
+// Using the shared toast manager from Shadcn v4 (@/components/ui/toast)
+export const appToast = createApiToast({
+  toast: toastManager,
+  locale: "es",
+});
+
+const res = await appToast({
   action: () => createProductAction(values),
   loadingMessage: "Guardando producto...",
-  successMessage: (r) => `Producto "${r.data?.name}" creado`,
+  successMessage: "Producto creado correctamente",
   onSuccess: () => navigate("/products"),
 });
 
-// Backward-compatible alias
-await toasted({
+// Or passing the toast manager directly per call
+await apiToast({
+  toast: toastManager,
   action: () => deleteProductAction(id),
   loadingMessage: "Eliminando...",
-});
-
-// Custom project-wide defaults (e.g., English-only app)
-export const enToast = createApiToast({
-  defaultLoadingMessage: "Processing...",
-  defaultSuccessMessage: "Completed successfully.",
-  defaultErrorMessage: "Something went wrong.",
 });
 ```
 
@@ -317,7 +317,7 @@ export const enToast = createApiToast({
 1. Explicit message string passed to the call or factory (`defaultErrorMessage`, `loadingMessage`, `successMessage`, `errorMessage`).
 2. Explicit `locale` option (`apiAction({ locale: "es", ... })`, `apiToast({ locale: "pt", ... })`, `createApiToast({ locale: "fr" })`).
 3. Runtime locale configured via `setGroovepackLocale("es")` from `@3lineas/groovepack/i18n`.
-4. Environment variable (`GROOVEPACK_LOCALE`, `NEXT_PUBLIC_GROOVEPACK_LOCALE`, `VITE_GROOVEPACK_LOCALE`, `PUBLIC_GROOVEPACK_LOCALE`).
+4. Environment variable (`GROOVEPACK_LOCALE` or `NEXT_PUBLIC_GROOVEPACK_LOCALE` in Vinext).
 5. Default fallback: `"en"`.
 
 ```ts
