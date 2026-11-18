@@ -1,3 +1,4 @@
+import { AppError } from "@/errors/app-error";
 import type { ActionResponse } from "@/types/common/action-response.type";
 import type { ErrorLogger } from "@/types/api-action/error-logger.type";
 import type { UnwrapStrategy } from "@/types/api-action/unwrap-strategy.type";
@@ -11,6 +12,7 @@ export function unwrapActionResponse<T>(
   defaultErrorMessage: string,
   onError: ErrorLogger,
   errorLogged: boolean,
+  createdError: Error | undefined,
   strategy: UnwrapStrategy<T>,
 ): T {
   if (response.success && response.data !== undefined) {
@@ -21,15 +23,28 @@ export function unwrapActionResponse<T>(
     ? (response.error ?? defaultErrorMessage)
     : (response.error ?? response.message ?? defaultErrorMessage);
 
+  let resolvedError = createdError;
+
   if (!errorLogged) {
-    onError(failureMessage, {
+    const loggedResult = onError(failureMessage, {
       success: response.success,
       hasData: response.data !== undefined,
     });
+    if (loggedResult instanceof Error) {
+      resolvedError = loggedResult;
+    }
   }
 
   if (strategy.mode === "throw") {
-    throw new Error(failureMessage);
+    throw resolvedError instanceof Error
+      ? resolvedError
+      : new AppError({
+          name: "ApiActionError",
+          message: failureMessage,
+          statusCode: 500,
+          code: "API_ACTION_FAILED",
+          silent: true,
+        });
   }
 
   return strategy.fallback;

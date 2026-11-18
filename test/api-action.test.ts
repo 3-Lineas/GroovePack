@@ -1,6 +1,7 @@
-import { describe, it, afterEach } from "node:test";
+import { describe, it, afterEach, mock } from "node:test";
 import assert from "node:assert/strict";
 import { apiAction, type ActionResponse } from "../src/api-action/index.js";
+import { AppError, createAppError } from "../src/errors/index.js";
 import { GROOVEPACK_MESSAGES } from "../src/i18n/index.js";
 
 interface UserItem {
@@ -249,7 +250,7 @@ describe("apiAction", () => {
               errorCalls += 1;
             },
           }),
-        { name: "Error", message: "Users not found" },
+        { name: "ApiActionError", message: "Users not found" },
       );
 
       assert.equal(errorCalls, 1);
@@ -270,7 +271,7 @@ describe("apiAction", () => {
               errorCalls += 1;
             },
           }),
-        { name: "Error", message: "No payload returned" },
+        { name: "ApiActionError", message: "No payload returned" },
       );
 
       assert.equal(errorCalls, 1);
@@ -290,7 +291,7 @@ describe("apiAction", () => {
               errorCalls += 1;
             },
           }),
-        { name: "Error", message: "Service unavailable" },
+        { name: "ApiActionError", message: "Service unavailable" },
       );
 
       assert.equal(errorCalls, 1);
@@ -329,6 +330,168 @@ describe("apiAction", () => {
       };
 
       assert.equal(typeof _verifyMutualExclusion, "function");
+    });
+  });
+
+  describe("createAppError integration", () => {
+    it("invokes onError factory in default ActionResponse mode on !response.ok and { success: false }", async () => {
+      const errorSpy = mock.method(console, "error", () => {});
+      const listUsersError = createAppError({
+        name: "ListUsersError",
+        statusCode: 500,
+        code: "USERS_LIST_FAILED",
+        defaultMessage: "Failed to list users",
+      });
+
+      try {
+        const httpFailure = await apiAction<UserItem[]>({
+          apiCall: async () => ({
+            ok: false,
+            status: 502,
+            json: async () => ({ error: "Bad gateway" }),
+          }),
+          onError: listUsersError,
+        });
+
+        assert.deepEqual(httpFailure, {
+          success: false,
+          error: "Bad gateway",
+        });
+
+        const actionFailure = await apiAction<UserItem[]>({
+          apiCall: async () => ({
+            success: false,
+            error: "Permission denied",
+          }),
+          onError: listUsersError,
+        });
+
+        assert.deepEqual(actionFailure, {
+          success: false,
+          error: "Permission denied",
+        });
+
+        const okHttpActionFailure = await apiAction<UserItem[]>({
+          apiCall: async () => ({
+            ok: true,
+            status: 200,
+            json: async () => ({
+              success: false,
+              error: "Validation failed",
+            }),
+          }),
+          onError: listUsersError,
+        });
+
+        assert.deepEqual(okHttpActionFailure, {
+          success: false,
+          error: "Validation failed",
+        });
+
+        assert.equal(errorSpy.mock.callCount(), 3);
+      } finally {
+        errorSpy.mock.restore();
+      }
+    });
+
+    it("invokes onError factory once and returns fallback in fallback mode", async () => {
+      const errorSpy = mock.method(console, "error", () => {});
+      const listUsersError = createAppError({
+        name: "ListUsersError",
+        statusCode: 500,
+        code: "USERS_LIST_FAILED",
+        defaultMessage: "Failed to list users",
+      });
+
+      try {
+        const users = await apiAction<UserItem[]>({
+          apiCall: async () => ({
+            ok: false,
+            status: 500,
+            json: async () => ({ error: "Database offline" }),
+          }),
+          fallback: [],
+          onError: listUsersError,
+        });
+
+        assert.deepEqual(users, []);
+        assert.equal(errorSpy.mock.callCount(), 1);
+      } finally {
+        errorSpy.mock.restore();
+      }
+    });
+
+    it("invokes onError factory once and rejects with exact AppError instance in throwOnError mode", async () => {
+      const errorSpy = mock.method(console, "error", () => {});
+      const listUsersError = createAppError({
+        name: "ListUsersError",
+        statusCode: 500,
+        code: "USERS_LIST_FAILED",
+        defaultMessage: "Failed to list users",
+      });
+
+      try {
+        await assert.rejects(
+          () =>
+            apiAction<UserItem[]>({
+              apiCall: async () => ({
+                ok: false,
+                status: 503,
+                json: async () => ({ error: "Service unavailable" }),
+              }),
+              throwOnError: true,
+              onError: listUsersError,
+            }),
+          (caughtError: unknown) => {
+            assert.ok(caughtError instanceof AppError);
+            assert.equal(listUsersError.is(caughtError), true);
+            assert.equal(caughtError.name, "ListUsersError");
+            assert.equal(caughtError.code, "USERS_LIST_FAILED");
+            assert.equal(caughtError.statusCode, 500);
+            assert.equal(caughtError.message, "Service unavailable");
+            return true;
+          },
+        );
+
+        assert.equal(errorSpy.mock.callCount(), 1);
+      } finally {
+        errorSpy.mock.restore();
+      }
+    });
+
+    it("invokes onError factory once and rejects with AppError when apiCall throws in throwOnError mode", async () => {
+      const errorSpy = mock.method(console, "error", () => {});
+      const listUsersError = createAppError({
+        name: "ListUsersError",
+        statusCode: 500,
+        code: "USERS_LIST_FAILED",
+        defaultMessage: "Failed to list users",
+      });
+
+      try {
+        await assert.rejects(
+          () =>
+            apiAction<UserItem[]>({
+              apiCall: async () => {
+                throw new Error("Network timeout");
+              },
+              throwOnError: true,
+              onError: listUsersError,
+            }),
+          (caughtError: unknown) => {
+            assert.ok(caughtError instanceof AppError);
+            assert.equal(listUsersError.is(caughtError), true);
+            assert.equal(caughtError.name, "ListUsersError");
+            assert.equal(caughtError.code, "USERS_LIST_FAILED");
+            assert.equal(caughtError.statusCode, 500);
+            return true;
+          },
+        );
+
+        assert.equal(errorSpy.mock.callCount(), 1);
+      } finally {
+        errorSpy.mock.restore();
+      }
     });
   });
 });

@@ -2,6 +2,7 @@ import { defineConfig } from "tsup";
 
 export default defineConfig({
   entry: {
+    "errors/index": "src/errors/index.ts",
     "logger/index": "src/logger/index.ts",
     "pipeline/pipeline": "src/pipeline/pipeline.ts",
     "pipeline/with-d1-transaction": "src/pipeline/with-d1-transaction.ts",

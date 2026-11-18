@@ -47,13 +47,19 @@ export async function apiAction<T = unknown>(
     defaultErrorMessage,
     onError = defaultErrorLogger,
   } = options;
+  const hasCustomOnError = options.onError !== undefined;
   const messages = resolveLocaleMessages();
   const resolvedDefaultError = defaultErrorMessage ?? messages.unexpectedError;
 
   let errorLogged = false;
+  let createdError: Error | undefined;
   const trackedOnError: ErrorLogger = (message, details) => {
     errorLogged = true;
-    onError(message, details);
+    const result = onError(message, details);
+    if (result instanceof Error) {
+      createdError = result;
+    }
+    return result;
   };
 
   const response = await executeApiCall<T>(
@@ -61,6 +67,7 @@ export async function apiAction<T = unknown>(
     resolvedDefaultError,
     messages.serverRequestFailed,
     trackedOnError,
+    hasCustomOnError,
   );
 
   if ("fallback" in options) {
@@ -69,6 +76,7 @@ export async function apiAction<T = unknown>(
       resolvedDefaultError,
       onError,
       errorLogged,
+      createdError,
       { mode: "fallback", fallback: options.fallback as T },
     );
   }
@@ -79,6 +87,7 @@ export async function apiAction<T = unknown>(
       resolvedDefaultError,
       onError,
       errorLogged,
+      createdError,
       { mode: "throw" },
     );
   }

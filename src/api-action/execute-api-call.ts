@@ -14,6 +14,7 @@ export async function executeApiCall<T>(
   resolvedDefaultError: string,
   serverRequestFailedMessage: string,
   onError: ErrorLogger,
+  hasCustomOnError: boolean,
 ): Promise<ActionResponse<T>> {
   try {
     const actionResult = await apiCall();
@@ -24,10 +25,17 @@ export async function executeApiCall<T>(
         resolvedDefaultError,
         serverRequestFailedMessage,
         onError,
+        hasCustomOnError,
       );
     }
 
     if (isActionResponse<T>(actionResult)) {
+      if (!actionResult.success && hasCustomOnError) {
+        onError(
+          actionResult.error ?? actionResult.message ?? resolvedDefaultError,
+          { success: false },
+        );
+      }
       return actionResult;
     }
 
@@ -36,7 +44,7 @@ export async function executeApiCall<T>(
       data: actionResult as T,
     };
   } catch (caughtError) {
-    onError("Unexpected error in apiAction", {
+    onError(resolvedDefaultError, {
       error:
         caughtError instanceof Error ? caughtError.message : String(caughtError),
     });

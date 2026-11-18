@@ -12,6 +12,7 @@ export async function handleHttpResponse<T>(
   fallbackErrorMessage: string,
   serverRequestFailedMessage: string,
   logError: ErrorLogger,
+  hasCustomOnError: boolean,
 ): Promise<ActionResponse<T>> {
   const payload = await tryParseJson(response);
 
@@ -24,14 +25,26 @@ export async function handleHttpResponse<T>(
       payload && typeof payload["message"] === "string"
         ? payload["message"]
         : undefined;
+    const resolvedMessage =
+      serverError ?? serverMessage ?? fallbackErrorMessage;
+
+    if (hasCustomOnError) {
+      logError(resolvedMessage, { status: response.status });
+    }
 
     return {
       success: false,
-      error: serverError ?? serverMessage ?? fallbackErrorMessage,
+      error: resolvedMessage,
     };
   }
 
   if (isActionResponse<T>(payload)) {
+    if (!payload.success && hasCustomOnError) {
+      logError(
+        payload.error ?? payload.message ?? fallbackErrorMessage,
+        { success: false, status: response.status },
+      );
+    }
     return payload;
   }
 

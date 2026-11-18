@@ -17,6 +17,7 @@ Zero-dependency & modular infrastructure primitives for **TypeScript**, **Cloudf
 - [4. `@3lineas/groovepack/api-client`](#4-3lineasgroovepackapi-client)
 - [5. `@3lineas/groovepack/api-action`](#5-3lineasgroovepackapi-action)
 - [6. `@3lineas/groovepack/api-toast`](#6-3lineasgroovepackapi-toast)
+- [7. `@3lineas/groovepack/errors`](#7-3lineasgroovepackerrors)
 - [End-to-End Architecture Example](#end-to-end-architecture-example)
 - [Migrating from v0.x (CLI Copy-Paste)](#migrating-from-v0x-cli-copy-paste)
 
@@ -43,6 +44,7 @@ Install only what your app actually uses:
 | Subpath | Required Peer Dependency | Target Environment |
 | :--- | :--- | :--- |
 | `/logger` | *None (0 deps)* | Node, Cloudflare Workers, Browser |
+| `/errors` | *None (0 deps)* | Node, Cloudflare Workers, Browser |
 | `/pipeline` | *None (0 deps)* | Cloudflare Workers, Node |
 | `/pipeline/with-d1-transaction` | *None (0 deps)* | Cloudflare Workers (D1 / Drizzle) |
 | `/api-action` | *None (0 deps)* | React, Astro, Next.js, Node |
@@ -60,6 +62,7 @@ Install only what your app actually uses:
 4. `@3lineas/groovepack/api-client` — `createApiClient` (REST) & `createHonoClient` (Hono RPC).
 5. `@3lineas/groovepack/api-action` — Polymorphic `apiAction` wrapper returning `ActionResponse<T>`.
 6. `@3lineas/groovepack/api-toast` — `apiToast` and `createApiToast` for Shadcn v4 (`@base-ui/react/toast`).
+7. `@3lineas/groovepack/errors` — `AppError` & `createAppError` for agnostic domain custom exceptions.
 
 ---
 
@@ -242,9 +245,19 @@ export async function createProductAction(
 
 2. **`fallback` mode** (Server Components / `page.tsx` returning `Promise<T>`):
 ```typescript
+import { createAppError } from "@3lineas/groovepack/errors";
+
+const listProductsError = createAppError({
+  name: "ListProductsError",
+  statusCode: 500,
+  code: "PRODUCTS_LIST_FAILED",
+  defaultMessage: "Could not load products.",
+});
+
 const products = await apiAction<Product[]>({
   apiCall: () => rpc.v1.products.$get(),
   fallback: [],
+  onError: listProductsError,
 });
 ```
 
@@ -288,11 +301,119 @@ export default defineConfig({
 });
 ```
 
+```typescript
 // Or passing the toast manager directly per call
 await apiToast({
   toast: toastManager,
   action: () => deleteProductAction(id),
   loadingMessage: "Eliminando...",
+});
+```
+
+---
+
+## 7. `@3lineas/groovepack/errors`
+
+Framework-agnostic custom exception primitives (`createAppError` and `AppError`) for **backend APIs, domain/pipeline actions, queues, and frontend Server Actions**. Every custom exception extends `AppError`, carries explicit `statusCode` and `code` metadata, and automatically logs via `@3lineas/groovepack/logger` unless `silent: true`.
+
+### A. Defining Domain Custom Exceptions (`createAppError`)
+
+Define each domain error as an atomic callable factory (`1` export per file):
+
+```typescript
+// src/errors/stores/slug-conflict.error.ts
+import { createAppError } from "@3lineas/groovepack/errors";
+
+export const slugConflictError = createAppError({
+  name: "SlugConflictError",
+  statusCode: 409,
+  code: "SLUG_ALREADY_IN_USE",
+  defaultMessage: "This URL slug is already taken. Please choose another one.",
+  silent: true, // Expected business conflict: suppress error log noise
+});
+```
+
+```typescript
+// src/errors/users/list-users.error.ts
+import { createAppError } from "@3lineas/groovepack/errors";
+
+export const listUsersError = createAppError({
+  name: "ListUsersError",
+  statusCode: 500,
+  code: "USERS_LIST_FAILED",
+  defaultMessage: "Could not load users right now.",
+});
+```
+
+### B. Throwing in Domain Logic, Pipelines & Backend Actions
+
+```typescript
+import { slugConflictError } from "@/errors/stores/slug-conflict.error";
+
+// Uses defaultMessage:
+if (existingStore) {
+  throw slugConflictError(undefined, { slug });
+}
+
+// Or overrides the message dynamically:
+throw slugConflictError(`The slug "${slug}" is already registered.`, { slug });
+```
+
+### C. Catching, Type-Guarding & Global Error Handlers
+
+```typescript
+import { AppError } from "@3lineas/groovepack/errors";
+import { slugConflictError } from "@/errors/stores/slug-conflict.error";
+
+try {
+  await createStore(input);
+} catch (caughtError) {
+  // Match a specific custom exception:
+  if (slugConflictError.is(caughtError)) {
+    return { status: caughtError.statusCode, code: caughtError.code };
+  }
+
+  // Or handle any AppError uniformly (e.g., Hono globalErrorHandler):
+  if (caughtError instanceof AppError) {
+    return ctx.json(
+      { success: false, error: caughtError.message, code: caughtError.code },
+      caughtError.statusCode,
+    );
+  }
+
+  throw caughtError;
+}
+```
+
+### D. Class Inheritance (`extends AppError`)
+
+When you need custom class hierarchy or extra properties, extend `AppError` directly:
+
+```typescript
+import { AppError } from "@3lineas/groovepack/errors";
+
+export class PaymentGatewayError extends AppError {
+  constructor(message: string, details?: Record<string, unknown>, cause?: unknown) {
+    super({
+      message,
+      statusCode: 502,
+      code: "PAYMENT_GATEWAY_ERROR",
+      details,
+      cause,
+    });
+  }
+}
+```
+
+### E. Direct Integration with `apiAction`
+
+Because `createAppError` factories share the `(message?, details?)` signature, pass them directly to `onError` without wrappers across all three `apiAction` modes (`ActionResponse<T>`, `fallback`, and `throwOnError: true`):
+
+```typescript
+const users = await apiAction<User[]>({
+  apiCall: () => rpc.v1.users.$get(),
+  fallback: [],
+  onError: listUsersError,
 });
 ```
 
